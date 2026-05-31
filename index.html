@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>鮨サクセス 〜目指せミシュラン三つ星〜</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ===== タイトル ===== -->
+  <section id="title" class="screen active">
+    <div class="noren">鮨</div>
+    <div class="title-sub">鮨サクセス 〜目指せミシュラン三つ星〜</div>
+    <div class="panel" style="max-width:520px;margin:0 auto;">
+      <p class="muted" style="text-align:left;">
+        パワプロのサクセス風・お寿司屋さん育成ゲーム。<br>
+        4つのポジションから一つを選び、12週間の修行でステータスを育成。
+        定期的にやってくる<b style="color:var(--accent2)">営業日</b>では、
+        制限時間内にお客さんの注文を捌くアクションに挑戦！<br>
+        店の評価を高めて、ミシュランの星を勝ち取ろう。
+      </p>
+      <div class="center mt">
+        <button id="btn-start" class="btn gold">▶ 修行を始める</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== ポジション選択 ===== -->
+  <section id="position" class="screen">
+    <div class="panel">
+      <h2>ポジションを選ぶ</h2>
+      <p class="muted">育てる職種を選ぼう。得意ステータスが伸びやすく、営業でも特典がある。</p>
+    </div>
+    <div id="pos-grid" class="pos-grid"></div>
+    <div class="flex-btns mt">
+      <button id="btn-pos-back" class="btn ghost">← 戻る</button>
+      <button id="btn-pos-decide" class="btn" disabled>このポジションで修行する →</button>
+    </div>
+  </section>
+
+  <!-- ===== 育成（サクセス） ===== -->
+  <section id="success" class="screen">
+    <div class="panel">
+      <div class="hud">
+        <div class="who" id="succ-who"></div>
+        <div style="display:flex;gap:8px;">
+          <span class="chip" id="succ-week"></span>
+          <span class="chip" id="succ-store"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>ステータス</h2>
+      <div id="stat-bars"></div>
+    </div>
+
+    <div class="panel">
+      <div id="succ-notice" class="muted" style="margin-bottom:10px;"></div>
+      <h2>今週のコマンド</h2>
+      <div id="cmd-grid" class="cmd-grid"></div>
+    </div>
+
+    <div class="panel">
+      <h2>修行ログ</h2>
+      <div id="log"></div>
+    </div>
+  </section>
+
+  <!-- ===== イベント ===== -->
+  <section id="event" class="screen">
+    <div class="panel" style="max-width:560px;margin:6vh auto 0;">
+      <h2 id="ev-title"></h2>
+      <p id="ev-text" class="muted" style="margin-bottom:18px;line-height:1.8;"></p>
+      <div id="ev-choices"></div>
+    </div>
+  </section>
+
+  <!-- ===== 営業（試合） ===== -->
+  <section id="cooking" class="screen">
+    <div class="panel">
+      <div class="top-bar">
+        <div>
+          <div style="font-weight:800;" id="svc-stage-name"></div>
+          <div class="muted" id="svc-served"></div>
+        </div>
+        <div class="timer-wrap">
+          <div class="row" style="margin-bottom:4px;">
+            <span class="muted">残り <b id="svc-time">0</b> 秒</span>
+            <span id="svc-msg" style="font-weight:700;font-size:13px;"></span>
+          </div>
+          <div class="timer-bar"><i id="svc-timer-fill" style="width:100%"></i></div>
+        </div>
+        <div class="score-box"><span id="svc-score">0</span></div>
+      </div>
+
+      <div class="station-title">📋 注文（タップして対応する一品を選ぶ）</div>
+      <div id="orders" class="orders"></div>
+
+      <div class="station-title">🍳 ステーション（手順どおりにタップして調理 → 提供）</div>
+      <div id="stations" class="stations"></div>
+    </div>
+  </section>
+
+  <!-- ===== 営業結果 ===== -->
+  <section id="service-result" class="screen">
+    <div class="panel" style="max-width:520px;margin:5vh auto 0;">
+      <div id="svcres-body"></div>
+      <div class="center mt">
+        <button id="btn-svc-continue" class="btn gold">修行に戻る →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 最終結果 ===== -->
+  <section id="result" class="screen">
+    <div class="panel" style="max-width:560px;margin:4vh auto 0;">
+      <div id="result-body"></div>
+      <div class="center mt">
+        <button id="btn-replay" class="btn">もう一度挑戦する</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script src="js/data.js?v=2"></script>
+<script src="js/cooking.js?v=2"></script>
+<script src="js/game.js?v=2"></script>
+</body>
+</html>
