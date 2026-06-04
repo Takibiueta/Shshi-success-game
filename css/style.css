@@ -349,6 +349,80 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .pawa-log summary { cursor: pointer; font-weight: 700; color: var(--accent2); font-size: 14px; }
 .pawa-log #log { margin-top: 8px; }
 
+/* ===== 背景の時間帯切替 ===== */
+.pawa-bg .pw-moon, .pawa-bg .pw-moon-shadow, .pawa-bg .pw-stars,
+.pawa-bg .pw-glow, .pawa-bg .pw-veil { opacity: 0; transition: opacity .6s ease; }
+.pawa-bg .pw-sun, .pawa-bg .pw-queue, .pawa-bg .sky-a, .pawa-bg .sky-b, .pawa-bg .sky-c { transition: opacity .6s ease, stop-color .6s ease; }
+.pawa-bg .pw-queue { opacity: 0; }
+
+.tod-morning .sky-a { stop-color: #ffe9c4; } .tod-morning .sky-b { stop-color: #ffd0a0; } .tod-morning .sky-c { stop-color: #f7b486; }
+.tod-day     .sky-a { stop-color: #bfe3ff; } .tod-day     .sky-b { stop-color: #a6d4f5; } .tod-day     .sky-c { stop-color: #ffe0b0; }
+.tod-evening .sky-a { stop-color: #ffc56a; } .tod-evening .sky-b { stop-color: #ff8f5a; } .tod-evening .sky-c { stop-color: #a85a72; }
+.tod-night   .sky-a { stop-color: #0e1838; } .tod-night   .sky-b { stop-color: #29336a; } .tod-night   .sky-c { stop-color: #5b4a66; }
+
+.tod-evening .pw-sun { opacity: .45; } .tod-evening .pw-glow { opacity: .85; }
+.tod-night .pw-sun { opacity: 0; }
+.tod-night .pw-moon, .tod-night .pw-moon-shadow { opacity: 1; }
+.tod-night .pw-stars { opacity: .9; }
+.tod-night .pw-glow { opacity: 1; }
+.tod-night .pw-veil { opacity: .30; }
+.tod-night .pw-window { fill: #ffd98a; }
+
+/* 営業日が近い：行列＋点灯 */
+.svc-near .pw-queue { opacity: 1; }
+.svc-near .pw-glow { opacity: 1; }
+.svc-near .pw-window { fill: #ffd98a; }
+
+/* ===== 演出（キラキラ・効果プレビュー） ===== */
+.fx-layer { position: absolute; inset: 0; z-index: 5; pointer-events: none; overflow: hidden; }
+.spark { position: absolute; font-size: 22px; animation: spark-fly .9s ease-out forwards; }
+@keyframes spark-fly {
+  0% { transform: translate(0,0) scale(.4); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) scale(1.2); opacity: 0; }
+}
+.fx-gain {
+  position: absolute; left: 50%; top: 44%; transform: translateX(-50%);
+  font-weight: 900; font-size: 20px; color: var(--accent2);
+  text-shadow: 0 2px 6px #000; white-space: nowrap;
+  animation: gain-rise 1.2s ease-out forwards;
+}
+@keyframes gain-rise {
+  0% { opacity: 0; transform: translate(-50%, 12px) scale(.8); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -44px) scale(1.1); }
+}
+.sc-stat.preview { background: rgba(232,184,75,.2); border-radius: 6px; }
+.ss-preview { font-size: 11px; font-weight: 800; color: #6fae5a; white-space: nowrap; }
+
+/* ===== アイテムボタン＆モーダル ===== */
+.item-btn {
+  position: absolute; left: 10px; bottom: 10px; z-index: 5;
+  display: flex; flex-direction: column; align-items: center;
+  background: rgba(26,19,14,.86); border: 2px solid var(--accent2); border-radius: 14px;
+  padding: 5px 12px; color: var(--ink); box-shadow: 0 4px 10px rgba(0,0,0,.45);
+}
+.item-btn:active { transform: translateY(2px); }
+.item-btn .ib-icon { font-size: 26px; line-height: 1; }
+.item-btn .ib-label { font-size: 11px; font-weight: 700; }
+.item-btn .item-count {
+  position: absolute; top: -8px; right: -8px;
+  min-width: 22px; height: 22px; line-height: 18px; padding: 0 4px;
+  background: var(--accent); color: #fff; border: 2px solid #15100c;
+  border-radius: 999px; font-size: 12px; font-weight: 800; text-align: center;
+}
+
+.modal { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.62); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.modal[hidden] { display: none; }
+.modal-box { background: var(--panel); border: 2px solid var(--accent2); border-radius: 16px; padding: 18px; width: 100%; max-width: 420px; max-height: 82vh; overflow: auto; box-shadow: var(--shadow); }
+.modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.modal-close { background: var(--panel-light); color: var(--ink); width: 34px; height: 34px; border-radius: 8px; font-size: 16px; }
+.item-list { display: flex; flex-direction: column; gap: 10px; }
+.item-card { display: flex; align-items: center; gap: 10px; background: var(--panel-light); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+.item-card .it-icon { font-size: 30px; }
+.item-card .it-body { flex: 1; font-size: 13px; line-height: 1.5; }
+.item-card .it-use { padding: 8px 16px; font-size: 13px; flex: 0 0 auto; }
+
 /* ---- ログ ---- */
 #log { font-size: 13px; line-height: 1.7; max-height: 130px; overflow-y: auto; }
 #log .l-good { color: var(--green); }

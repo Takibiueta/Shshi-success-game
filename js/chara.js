@@ -49,6 +49,11 @@ const Chara = (() => {
           <path d="M84 119 Q100 141 116 119 Q100 129 84 119 Z" fill="#9c3a28"/>
           <path d="M150 56 q9 11 1 24 q-5 -6 -2 -13 q-7 5 -4 14 q-9 -11 5 -25 Z" fill="#e8923d"/>
           <path d="M153 62 q5 7 1 15 q-3 -4 -1 -8 q-4 3 -2 8 q-5 -7 3 -15 Z" fill="#f4c542"/>`;
+      case "smug":
+        return `
+          <path d="M68 103 q9 -7 18 -1" fill="none" stroke="#2b2b2b" stroke-width="4" stroke-linecap="round"/>
+          <path d="M114 102 q9 -6 18 1" fill="none" stroke="#2b2b2b" stroke-width="4" stroke-linecap="round"/>
+          <path d="M88 124 q11 9 24 -3" fill="none" stroke="#7a4a3a" stroke-width="3.2" stroke-linecap="round"/>`;
       default: // normal
         return `
           <ellipse cx="78" cy="102" rx="6.5" ry="9" fill="#2b2b2b"/>
@@ -77,7 +82,28 @@ const Chara = (() => {
       <circle cx="100" cy="100" r="58" fill="${SKIN}"/>`;
 
     let head;
-    if (who === "oyakata") {
+    if (who === "heroine") {
+      // 彼女「さくら」：長い髪＋前髪＋花の髪飾り
+      head = `
+        <path d="M40 110 Q40 172 60 206 L73 200 Q56 166 62 120 Z" fill="#5a3e30"/>
+        <path d="M160 110 Q160 172 140 206 L127 200 Q144 166 138 120 Z" fill="#5a3e30"/>
+        ${blush()}
+        ${face(expr)}
+        <path d="M46 88 Q56 50 100 47 Q144 50 154 88 Q150 66 138 64 Q118 57 100 60 Q82 57 62 64 Q50 66 46 88 Z" fill="#5a3e30"/>
+        <g transform="translate(150,70)">
+          <circle cx="-8" cy="0" r="6" fill="#ff8fb0"/><circle cx="8" cy="0" r="6" fill="#ff8fb0"/>
+          <circle cx="0" cy="-8" r="6" fill="#ff8fb0"/><circle cx="0" cy="8" r="6" fill="#ff8fb0"/>
+          <circle cx="0" cy="0" r="5" fill="#ffd24a"/>
+        </g>`;
+    } else if (who === "rival") {
+      // ライバル「龍二」：逆立てた髪＋青い鉢巻
+      head = `
+        ${face(expr)}
+        <path d="M46 80 L38 38 L62 64 L70 30 L90 62 L100 26 L110 62 L130 32 L140 64 L162 42 L154 82 Z" fill="#23211f"/>
+        <rect x="44" y="74" width="112" height="14" rx="3" fill="#2f7a8a"/>
+        <path d="M154 81 l18 -8 l-2 17 Z" fill="#2f7a8a"/>
+        <path d="M154 81 l18 8 l-2 -17 Z" fill="#256472"/>`;
+    } else if (who === "oyakata") {
       // 大将：白髪＋鉢巻＋口ひげ
       head = `
         <path d="M50 72 Q100 30 150 72 Q152 50 100 40 Q48 50 50 72 Z" fill="#d3cec3"/>
@@ -106,7 +132,8 @@ const Chara = (() => {
     </svg>`;
   }
 
-  const NAMES = { me: "あなた", oyakata: "大将" };
+  const NAMES = { me: "あなた", oyakata: "大将", heroine: "さくら", rival: "龍二" };
+  const ACCENT = { oyakata: "#6b5a47", heroine: "#e87aa0", rival: "#2f7a8a" };
 
   /* ---------- セリフ集 ---------- */
   // {who, expr, lines:[...]} ／ {stat} は置換される
@@ -149,6 +176,9 @@ const Chara = (() => {
     event_done: [
       { who: "me", expr: "happy", lines: ["{msg}"] },
     ],
+    item_used: [
+      { who: "me", expr: "happy", lines: ["{msg}", "これは効くぞ…！", "ありがたく使わせてもらう！"] },
+    ],
     hint: [
       { who: "oyakata", expr: "normal", lines: [
         "得意（★）の練習は伸びやすい。集中して伸ばすのも手だ。",
@@ -189,7 +219,7 @@ const Chara = (() => {
     if (!e.art) return;
     const who = opts.who || "me";
     const expr = opts.expr || "normal";
-    const accent = who === "oyakata" ? "#6b5a47" : (POS_COLOR[opts.position] || "#d94f3d");
+    const accent = ACCENT[who] || POS_COLOR[opts.position] || "#d94f3d";
     e.art.innerHTML = svg(who, expr, accent);
     e.art.className = "chara-art pop";
     void e.art.offsetWidth;

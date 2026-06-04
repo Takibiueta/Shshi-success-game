@@ -43,22 +43,33 @@
   <!-- ===== 育成（サクセス）／ パワプロ風レイアウト ===== -->
   <section id="success" class="screen pawa">
     <div class="pawa-scene">
-      <!-- 背景イラスト（寿司屋の店先） -->
+      <!-- 背景イラスト（寿司屋の店先・時間帯で変化） -->
       <div class="pawa-bg">
         <svg viewBox="0 0 800 480" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <linearGradient id="pw-sky" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stop-color="#ffe3b3"/>
-              <stop offset="0.55" stop-color="#ffc187"/>
-              <stop offset="1" stop-color="#f4a06a"/>
+              <stop class="sky-a" offset="0" stop-color="#ffe3b3"/>
+              <stop class="sky-b" offset="0.55" stop-color="#ffc187"/>
+              <stop class="sky-c" offset="1" stop-color="#f4a06a"/>
             </linearGradient>
             <linearGradient id="pw-wood" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0" stop-color="#d9b685"/>
               <stop offset="1" stop-color="#b88a55"/>
             </linearGradient>
+            <radialGradient id="pw-lglow" cx="0.5" cy="0.5" r="0.5">
+              <stop offset="0" stop-color="#ffce6a" stop-opacity="0.9"/>
+              <stop offset="1" stop-color="#ffce6a" stop-opacity="0"/>
+            </radialGradient>
           </defs>
           <rect width="800" height="480" fill="url(#pw-sky)"/>
-          <circle cx="650" cy="118" r="80" fill="#fff4d6" opacity="0.7"/>
+          <!-- 星（夜） -->
+          <g class="pw-stars" fill="#fff">
+            <circle cx="120" cy="60" r="2"/><circle cx="220" cy="40" r="1.5"/><circle cx="340" cy="70" r="2"/>
+            <circle cx="470" cy="44" r="1.5"/><circle cx="560" cy="66" r="2"/><circle cx="690" cy="38" r="1.5"/><circle cx="740" cy="80" r="2"/>
+          </g>
+          <circle class="pw-sun" cx="650" cy="118" r="80" fill="#fff4d6" opacity="0.72"/>
+          <circle class="pw-moon" cx="652" cy="98" r="44" fill="#fdf6d8"/>
+          <circle class="pw-moon-shadow" cx="672" cy="86" r="40" fill="#0e1838"/>
           <rect y="372" width="800" height="108" fill="#46342a"/>
           <rect y="372" width="800" height="14" fill="#5a4636"/>
           <rect x="60" y="150" width="680" height="226" fill="url(#pw-wood)" stroke="#8a6a44" stroke-width="2"/>
@@ -66,9 +77,9 @@
           <path d="M34 168 L120 92 L680 92 L766 168 Z" fill="#5b4636"/>
           <rect x="34" y="168" width="732" height="14" fill="#6e5644"/>
           <g stroke="#b89a6a" stroke-width="3">
-            <rect x="110" y="200" width="150" height="112" fill="#f6efd9"/>
+            <rect class="pw-window" x="110" y="200" width="150" height="112" fill="#f6efd9"/>
             <line x1="110" y1="256" x2="260" y2="256"/><line x1="160" y1="200" x2="160" y2="312"/><line x1="210" y1="200" x2="210" y2="312"/>
-            <rect x="540" y="200" width="150" height="112" fill="#f6efd9"/>
+            <rect class="pw-window" x="540" y="200" width="150" height="112" fill="#f6efd9"/>
             <line x1="540" y1="256" x2="690" y2="256"/><line x1="590" y1="200" x2="590" y2="312"/><line x1="640" y1="200" x2="640" y2="312"/>
           </g>
           <rect x="338" y="212" width="124" height="164" fill="#241a13"/>
@@ -77,6 +88,9 @@
             <line x1="363" y1="210" x2="363" y2="270"/><line x1="400" y1="210" x2="400" y2="270"/><line x1="437" y1="210" x2="437" y2="270"/>
           </g>
           <text x="400" y="249" text-anchor="middle" font-size="34" font-weight="900" fill="#fff" font-family="serif">鮨</text>
+          <!-- 提灯（点灯グロー付き） -->
+          <circle class="pw-glow" cx="210" cy="172" r="50" fill="url(#pw-lglow)"/>
+          <circle class="pw-glow" cx="592" cy="172" r="50" fill="url(#pw-lglow)"/>
           <g>
             <line x1="210" y1="120" x2="210" y2="150" stroke="#3a2a20" stroke-width="3"/>
             <ellipse cx="210" cy="172" rx="26" ry="32" fill="#d2382c"/>
@@ -91,8 +105,27 @@
           </g>
           <ellipse cx="92" cy="384" rx="42" ry="26" fill="#4c7a3a"/>
           <ellipse cx="712" cy="384" rx="42" ry="26" fill="#4c7a3a"/>
+          <!-- お客さんの行列（営業日が近いと出現） -->
+          <g class="pw-queue">
+            <g transform="translate(500,332)"><ellipse cy="46" rx="16" ry="6" fill="rgba(0,0,0,.25)"/><rect x="-13" y="6" width="26" height="40" rx="11" fill="#7a8fb0"/><circle r="12" fill="#e8c39a"/></g>
+            <g transform="translate(546,334)"><ellipse cy="44" rx="16" ry="6" fill="rgba(0,0,0,.25)"/><rect x="-13" y="6" width="26" height="38" rx="11" fill="#b07a7a"/><circle r="12" fill="#f0d0a8"/></g>
+            <g transform="translate(592,332)"><ellipse cy="46" rx="16" ry="6" fill="rgba(0,0,0,.25)"/><rect x="-13" y="6" width="26" height="40" rx="11" fill="#7aa07a"/><circle r="12" fill="#e8c39a"/></g>
+            <g transform="translate(638,335)"><ellipse cy="43" rx="15" ry="6" fill="rgba(0,0,0,.25)"/><rect x="-12" y="6" width="24" height="37" rx="10" fill="#c0a060"/><circle r="11" fill="#f0d0a8"/></g>
+          </g>
+          <!-- 夜のヴェール -->
+          <rect class="pw-veil" width="800" height="480" fill="#10183a"/>
         </svg>
       </div>
+
+      <!-- 演出レイヤー（キラキラ等） -->
+      <div class="fx-layer" id="fx-layer"></div>
+
+      <!-- アイテムボタン（左下） -->
+      <button class="item-btn" id="btn-items">
+        <span class="ib-icon">🎒</span>
+        <span class="ib-label">アイテム</span>
+        <span class="item-count" id="item-count">0</span>
+      </button>
 
       <!-- 上部ステータスバー -->
       <div class="pawa-top">
@@ -154,6 +187,18 @@
       <div id="log"></div>
     </details>
   </section>
+
+  <!-- ===== アイテム（モーダル） ===== -->
+  <div class="modal" id="item-modal" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <h2>🎒 持ち物</h2>
+        <button class="modal-close" id="btn-items-close">✕</button>
+      </div>
+      <p class="muted" style="margin-bottom:10px;">使うとすぐ効果が出る（週は進まない）。</p>
+      <div id="item-list" class="item-list"></div>
+    </div>
+  </div>
 
   <!-- ===== イベント ===== -->
   <section id="event" class="screen">
@@ -232,9 +277,9 @@
 </div>
 
 <script src="https://unpkg.com/three@0.150.1/build/three.min.js"></script>
-<script src="js/data.js?v=7"></script>
-<script src="js/chara.js?v=7"></script>
-<script src="js/cooking.js?v=7"></script>
-<script src="js/game.js?v=7"></script>
+<script src="js/data.js?v=8"></script>
+<script src="js/chara.js?v=8"></script>
+<script src="js/cooking.js?v=8"></script>
+<script src="js/game.js?v=8"></script>
 </body>
 </html>

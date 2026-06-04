@@ -73,6 +73,7 @@ const Game = (() => {
       stats: Object.assign({ stamina: 100, maxStamina: 100 }, p.base),
       storeScore: 0,        // 営業の累積（店の評価に直結）
       serviceCount: 0,
+      items: { energy: 1, recipe: 1 },   // 初期アイテム
     };
     logLines = [];
     log(`${p.icon} 「${p.name}」として修行開始！ 目指せミシュラン三つ星！`, "good");
@@ -106,6 +107,117 @@ const Game = (() => {
     return tier;
   }
 
+  function clamp100(v) { return Math.max(0, Math.min(100, v)); }
+
+  // 効果（イベント / アイテム共通）を適用
+  function applyEffects(eff) {
+    for (const [k, v] of Object.entries(eff)) {
+      if (k === "all") {
+        for (const t of TRAINABLE) player.stats[t] = clamp100(player.stats[t] + v);
+      } else if (k === "stamina") {
+        player.stats.stamina = Math.max(0, Math.min(player.stats.maxStamina, player.stats.stamina + v));
+      } else if (player.stats[k] != null) {
+        player.stats[k] = clamp100(player.stats[k] + v);
+      }
+    }
+  }
+
+  /* ---------- 背景の時間帯・行列 ---------- */
+  function updateScene() {
+    const scene = document.querySelector(".pawa-scene");
+    if (!scene) return;
+    // 週の進行で 朝→昼→夕→夜 に変化
+    const tods = ["tod-morning", "tod-day", "tod-evening", "tod-night"];
+    scene.classList.remove(...tods);
+    const phase = Math.min(3, Math.floor((player.week - 1) / 3)); // 1-3:朝 4-6:昼 7-9:夕 10-12:夜
+    scene.classList.add(tods[phase]);
+    // 営業日が近い（当日 or 直前週）と行列＆点灯
+    const near = SERVICE_STAGES.some(s => s.day === player.week || s.day === player.week + 1);
+    scene.classList.toggle("svc-near", near);
+  }
+
+  /* ---------- アイテム ---------- */
+  function itemTotal() {
+    return Object.values(player.items || {}).reduce((a, b) => a + b, 0);
+  }
+  function addItem(id) {
+    if (!ITEMS[id]) return;
+    player.items[id] = (player.items[id] || 0) + 1;
+  }
+  function openItems() {
+    const list = document.getElementById("item-list");
+    list.innerHTML = "";
+    const owned = Object.keys(player.items).filter(id => player.items[id] > 0);
+    if (owned.length === 0) {
+      list.innerHTML = `<div class="muted" style="text-align:center;padding:20px;">アイテムを持っていない。<br>イベントの差し入れなどで手に入る。</div>`;
+    } else {
+      for (const id of owned) {
+        const it = ITEMS[id];
+        const el = document.createElement("div");
+        el.className = "item-card";
+        el.innerHTML = `
+          <span class="it-icon">${it.icon}</span>
+          <span class="it-body"><b>${it.name}</b> <small>×${player.items[id]}</small><br><span class="muted">${it.desc}</span></span>
+          <button class="btn it-use">使う</button>`;
+        el.querySelector(".it-use").onclick = () => useItem(id);
+        list.appendChild(el);
+      }
+    }
+    document.getElementById("item-modal").hidden = false;
+  }
+  function closeItems() { document.getElementById("item-modal").hidden = true; }
+  function useItem(id) {
+    if (!player.items[id]) return;
+    const it = ITEMS[id];
+    applyEffects(it.effect);
+    player.items[id]--;
+    if (player.items[id] <= 0) delete player.items[id];
+    log(`🎒 「${it.name}」を使った！ ${it.desc}`, "good");
+    pendingReact = { type: "item_used", ctx: { msg: `「${it.name}」、効いてきた！` } };
+    renderSuccess();
+    fxSparkle();
+    fxGain(`${it.icon} ${it.name}`);
+    openItems(); // リストを更新（空なら閉じる）
+    if (itemTotal() === 0) closeItems();
+  }
+
+  /* ---------- 演出（キラキラ・効果プレビュー） ---------- */
+  function fxSparkle() {
+    const layer = document.getElementById("fx-layer");
+    if (!layer) return;
+    for (let i = 0; i < 10; i++) {
+      const s = document.createElement("span");
+      s.className = "spark";
+      s.textContent = ["✨", "⭐", "💫"][i % 3];
+      s.style.left = (38 + Math.random() * 24) + "%";
+      s.style.top = (45 + Math.random() * 30) + "%";
+      s.style.setProperty("--dx", (Math.random() * 120 - 60) + "px");
+      s.style.setProperty("--dy", (-40 - Math.random() * 90) + "px");
+      s.style.animationDelay = (Math.random() * 0.12) + "s";
+      layer.appendChild(s);
+      setTimeout(() => s.remove(), 1000);
+    }
+  }
+  function fxGain(text) {
+    const layer = document.getElementById("fx-layer");
+    if (!layer) return;
+    const el = document.createElement("div");
+    el.className = "fx-gain";
+    el.textContent = text;
+    layer.appendChild(el);
+    setTimeout(() => el.remove(), 1200);
+  }
+  function previewStat(k, gain) {
+    const row = document.querySelector(`.sc-stat[data-stat="${k}"]`);
+    if (row) row.classList.add("preview");
+    const p = document.getElementById("prev-" + k);
+    if (p) p.textContent = `+${gain.min}〜${gain.max}`;
+  }
+  function clearPreview() {
+    document.querySelectorAll(".sc-stat.preview").forEach(r => r.classList.remove("preview"));
+    document.querySelectorAll(".ss-preview").forEach(p => p.textContent = "");
+  }
+
   function renderSuccess() {
     const p = POSITIONS[player.position];
     // 上部ステータスバー
@@ -132,12 +244,19 @@ const Game = (() => {
       const v = player.stats[k];
       const g = gradeLetter(v);
       sw.innerHTML += `
-        <div class="sc-stat">
+        <div class="sc-stat" data-stat="${k}">
           <span class="ss-name">${s.icon}${s.name}</span>
+          <span class="ss-preview" id="prev-${k}"></span>
           <span class="ss-grade g-${g}">${g}</span>
           <span class="ss-val">${v}</span>
         </div>`;
     }
+
+    // 背景の時間帯＆営業日が近いと行列
+    updateScene();
+    // アイテム数バッジ
+    const ic = document.getElementById("item-count");
+    if (ic) ic.textContent = itemTotal();
 
     // 次の営業日告知
     const nextStage = SERVICE_STAGES.find(s => s.day >= player.week);
@@ -195,6 +314,8 @@ const Game = (() => {
         <span class="ct">${s.name}${isMain ? "★" : ""}</span>
         <span class="cd">+${gain.min}〜${gain.max} / 体力-${cost}</span>`;
       el.onclick = () => doTrain(k, cost);
+      el.onpointerenter = () => previewStat(k, gain);
+      el.onpointerleave = () => clearPreview();
       grid.appendChild(el);
     }
     // 休養
@@ -242,7 +363,13 @@ const Game = (() => {
     const s = STATS[k];
     if (failed) { log(`😣 疲労で練習に身が入らず…「${s.name}」+${gain}`, "bad"); pendingReact = { type: "train_fail" }; }
     else { log(`💪 ${s.name}の練習！ +${gain}`, "good"); pendingReact = { type: "train_good", ctx: { stat: s.name } }; }
+    clearPreview();
     advanceWeek();
+    // 成功時はキラキラ＋獲得表示（育成画面のままなら見える）
+    if (!failed && document.getElementById("success").classList.contains("active")) {
+      fxSparkle();
+      fxGain(`${s.icon}${s.name} +${gain}`);
+    }
   }
 
   function doRest() {
@@ -287,7 +414,11 @@ const Game = (() => {
     show("event");
     document.getElementById("ev-title").textContent = ev.title;
     if (typeof Chara !== "undefined") {
-      Chara.say({ who: "me", expr: "surprised", text: ev.text, target: "event", position: player.position });
+      Chara.say({
+        who: ev.chara || "me",
+        expr: ev.expr || "surprised",
+        text: ev.text, target: "event", position: player.position,
+      });
     }
     const wrap = document.getElementById("ev-choices");
     wrap.innerHTML = "";
@@ -303,13 +434,8 @@ const Game = (() => {
   }
 
   function resolveEvent(choice) {
-    for (const [k, v] of Object.entries(choice.effects)) {
-      if (k === "stamina") {
-        player.stats.stamina = Math.max(0, Math.min(player.stats.maxStamina, player.stats.stamina + v));
-      } else {
-        player.stats[k] = Math.max(0, Math.min(100, player.stats[k] + v));
-      }
-    }
+    applyEffects(choice.effects);
+    if (choice.item) addItem(choice.item);
     log(`📖 ${choice.msg}`, "good");
     pendingReact = { type: "event_done", ctx: { msg: choice.msg } };
     show("success");
@@ -392,6 +518,12 @@ const Game = (() => {
     if (hint) hint.onclick = () => {
       if (typeof Chara !== "undefined") Chara.react("hint", { position: player.position, target: "success" });
     };
+    const itemBtn = document.getElementById("btn-items");
+    if (itemBtn) itemBtn.onclick = openItems;
+    const itemClose = document.getElementById("btn-items-close");
+    if (itemClose) itemClose.onclick = closeItems;
+    const itemModal = document.getElementById("item-modal");
+    if (itemModal) itemModal.onclick = (e) => { if (e.target === itemModal) closeItems(); };
     show("title");
   }
 

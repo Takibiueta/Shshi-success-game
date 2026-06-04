@@ -103,8 +103,24 @@ const SERVICE_STAGES = [
   { day: 12, name: "ミシュラン調査員来店", time: 60, customers: 12, interval: 2.6, patience: 13 },
 ];
 
+/* アイテム ---------------------------------------------------------------
+ * イベントの差し入れ等で入手。使うと即時に能力/体力が上がる（週は進まない）。
+ * effect の "all" は育成可能な全能力に加算。
+ * ------------------------------------------------------------------------ */
+const ITEMS = {
+  energy:    { id: "energy",    name: "栄養ドリンク",   icon: "🧃", desc: "体力 +40",          effect: { stamina: 40 } },
+  knife:     { id: "knife",     name: "上等な包丁",     icon: "🔪", desc: "技術 +8",           effect: { tech: 8 } },
+  recipe:    { id: "recipe",    name: "秘伝のレシピ書", icon: "📕", desc: "知識 +8",           effect: { knowledge: 8 } },
+  tea:       { id: "tea",       name: "高級茶葉",       icon: "🍵", desc: "接客 +8",           effect: { hospitality: 8 } },
+  whetstone: { id: "whetstone", name: "名工の砥石",     icon: "🪨", desc: "技術 +5 / スピード +5", effect: { tech: 5, speed: 5 } },
+  charm:     { id: "charm",     name: "商売繁盛のお守り", icon: "🧧", desc: "創作 +6 / 接客 +4",  effect: { creativity: 6, hospitality: 4 } },
+  bento:     { id: "bento",     name: "特製まかない",   icon: "🍱", desc: "体力 +25 / 全能力 +2", effect: { stamina: 25, all: 2 } },
+};
+
 /* ランダムイベント -------------------------------------------------------
  * 育成パートで一定確率で発生。選択肢で結果が変わる。
+ * chara: 立ち絵の話者（me / oyakata / heroine / rival）。省略時は me。
+ * choices[].item: 選ぶと入手するアイテムID。
  * ------------------------------------------------------------------------ */
 const EVENTS = [
   {
@@ -159,6 +175,46 @@ const EVENTS = [
     choices: [
       { label: "ひたすら反復練習",   effects: { tech: 5, speed: 5, stamina: -10 }, msg: "地道に克服。技術+5 スピード+5（体力-10）" },
       { label: "思い切ってリフレッシュ", effects: { stamina: 25, creativity: 3 }, msg: "気分一新！ 体力+25 創作+3" },
+    ],
+  },
+
+  /* --- 彼女「さくら」イベント --- */
+  {
+    id: "heroine_visit", chara: "heroine", expr: "happy",
+    title: "さくらの差し入れ",
+    text: "幼なじみの「さくら」が店に来てくれた。「無理してない？ はい、これ作ってきたよ！」",
+    choices: [
+      { label: "ありがたく受け取る", effects: { stamina: 20, hospitality: 4 }, item: "bento", msg: "差し入れに元気百倍！ 体力+20 接客+4（特製まかない を入手）" },
+      { label: "少し一緒に休む",     effects: { stamina: 30, creativity: 5 }, msg: "楽しいひととき。体力+30 創作+5" },
+    ],
+  },
+  {
+    id: "heroine_date", chara: "heroine", expr: "normal",
+    title: "休日のお誘い",
+    text: "「たまには息抜きしよ？」とさくらに誘われた。どうする？",
+    choices: [
+      { label: "デートする",         effects: { stamina: 25, hospitality: 8, creativity: 4 }, msg: "心が満たされた。体力+25 接客+8 創作+4" },
+      { label: "店の仕込みを優先",   effects: { tech: 7 }, item: "tea", msg: "真面目に仕込み。技術+7（さくらが高級茶葉を置いていった）" },
+    ],
+  },
+
+  /* --- ライバル「龍二」イベント --- */
+  {
+    id: "rival_challenge", chara: "rival", expr: "smug",
+    title: "ライバル登場",
+    text: "向かいの店の若大将「龍二」が挑発してきた。「お前の握り、見せてもらおうか」",
+    choices: [
+      { label: "勝負を受ける！",     effects: { tech: 10, speed: 6, stamina: -10 }, msg: "火花散る対決！ 技術+10 スピード+6（体力-10）" },
+      { label: "技を盗む",           effects: { knowledge: 8, creativity: 6 }, msg: "観察に徹した。知識+8 創作+6" },
+    ],
+  },
+  {
+    id: "rival_recipe", chara: "rival", expr: "smug",
+    title: "ライバルの新作",
+    text: "龍二の新作が話題をさらっているらしい。悔しさで燃えてきた…！",
+    choices: [
+      { label: "対抗して創作する",   effects: { creativity: 11, stamina: -8 }, item: "charm", msg: "負けじと新作開発！ 創作+11（体力-8）（お守り を入手）" },
+      { label: "基礎を固める",       effects: { tech: 6, speed: 6 }, item: "whetstone", msg: "地に足つけて鍛錬。技術+6 スピード+6（砥石を入手）" },
     ],
   },
 ];
