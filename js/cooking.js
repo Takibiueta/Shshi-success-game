@@ -1,39 +1,49 @@
 /* =========================================================================
- * 鮨サクセス — 営業パート（Overcookedスタイルのアクション）
+ * 鮨サクセス — 営業パート（3D / Overcookedスタイル）
  *
- * 上から見たキッチンでシェフ🧑‍🍳を自分で操作する。
- * 食材台・調理台に近づいて作業ボタンを押すと「トレイ」に工程が積まれる。
- * 注文どおりの手順で組み立て、提供口まで運んで提供する。
- * 間違えたらゴミ箱で片付けてやり直し。
+ * Three.js で立体的なキッチンを描画。シェフ🧑‍🍳を奥行きのある床で操作する。
+ * まずお皿を取り（1皿ずつ）、食材台・調理台を手順どおり回って組み立て、
+ * 提供口へ運んで提供する。間違えたら片付け台でやり直し。
  * 育成ステータスが移動速度・制限時間・我慢・チップ・スコアに影響。
  * ========================================================================= */
 
 const Cooking = (() => {
+  const THREE = window.THREE;
+
   let state = null;
   let rafId = null;
   let lastTs = 0;
 
-  // キャンバスの論理サイズ（CSSで画面幅に合わせて拡縮）
-  const W = 760, H = 440;
-  const TILE_W = 98, TILE_H = 68;
-  const REACH = 82;            // 台に作業できる距離
-
-  // ステーションの配置（上段＝食材、下段＝皿/加工/提供/ゴミ箱）
+  // ステーションの配置（奥列＝食材、手前列＝皿/加工/提供/ゴミ箱）
   const LAYOUT = {
-    top:    ["rice", "maguro", "salmon", "tamago", "ebi", "ikura", "uni"],
-    bottom: ["plate", "nori", "wasabi", "cut", "soup", "fry", "serve", "trash"],
+    far:  ["rice", "maguro", "salmon", "tamago", "ebi", "ikura", "uni"],
+    near: ["plate", "nori", "wasabi", "cut", "soup", "fry", "serve", "trash"],
   };
-  // ACTIONS に無い台の見た目
   const EXTRA = {
     plate: { icon: "🍽️", label: "お皿" },
     serve: { icon: "🛎️", label: "提供口" },
     trash: { icon: "🗑️", label: "片付け" },
   };
-  // 台ごとの色
+  // 台の色（16進）
   const COLORS = {
-    plate: "#3c6a8a", serve: "#4c8a3c", trash: "#5a4038", cut: "#5a4c8a",
-    soup: "#8a6a3c", fry: "#a05a30",
+    plate: 0x3c6a8a, serve: 0x4c8a3c, trash: 0x6a4a40, cut: 0x6a5aa0,
+    soup: 0x9a7440, fry: 0xb06438,
+    rice: 0xcfc4b0, nori: 0x2c2c34, wasabi: 0x5a8a4c,
+    maguro: 0xb0463c, salmon: 0xc9764a, tamago: 0xd8b84b,
+    ebi: 0xc97a6a, ikura: 0xd87a3c, uni: 0xd8b84b,
   };
+
+  // ワールド寸法
+  const FAR_Z = -5.4, NEAR_Z = 5.4;      // 奥/手前カウンターの z
+  const SPREAD = 7.6;                      // 台を並べる x の範囲（±）
+  const REACH = 2.7;                       // 作業できる距離（xz平面）
+  const BOUND_X = 7.6, BOUND_Z = 3.4;      // プレイヤー移動範囲
+
+  // 3D オブジェクト（モジュール内で保持）
+  let renderer = null, scene = null, camera = null;
+  let chef = null, plateMesh = null, plateLabel = null, ring = null;
+  let flashMap = {};
+  let resizeFn = null;
 
   /* ---------- 開始 ---------- */
   function start(stage, player, onFinish) {
@@ -45,7 +55,7 @@ const Cooking = (() => {
     const tipMult = (b.tip || 1) * (1 + player.stats.hospitality / 150);
     const techMissResist = player.stats.tech;
     const scoreMult = (1 + player.stats.creativity / 120) * (b.scoreMult || 1);
-    const moveSpeed = 150 + player.stats.speed * 1.6;   // スピードで移動が速くなる
+    const moveSpeed = 4.2 + player.stats.speed * 0.045;   // スピードで移動が速くなる
     const pool = RECIPES.filter(r => r.req <= player.stats.knowledge);
 
     state = {
@@ -54,25 +64,30 @@ const Cooking = (() => {
       patienceMult, tipMult, techMissResist, scoreMult, moveSpeed, pool,
       score: 0, served: 0, lost: 0, mistakes: 0, combo: 0, maxCombo: 0,
       orders: [],
-      hasPlate: false,          // お皿を持っているか（持っていないと組み立て不可）
-      tray: [],                 // 今のお皿に乗っている工程の列
+      hasPlate: false,
+      tray: [],
       spawnTimer: 1.0,
       spawnedCount: 0,
       nextOrderId: 1,
       running: true,
       finished: false,
-      // プレイヤー & 入力
-      px: W / 2, py: H / 2, facing: 1,
+      // プレイヤー & 入力（x:左右, z:奥行き）
+      x: 0, z: 2.2, facing: 0,
       input: { up: false, down: false, left: false, right: false },
       pressed: new Set(),
       actionCd: 0,
-      nearId: null,             // 今作業できる台
+      nearId: null,
       stations: [],
-      pops: [],                 // canvas上の演出
+      pops: [],
     };
 
-    buildStations();
-    setupCanvas();
+    if (!THREE) {
+      flashMsg("3Dライブラリの読み込みに失敗しました（ネット接続が必要です）", true);
+      console.error("[Cooking] THREE.js が読み込まれていません。");
+      return;
+    }
+
+    buildScene();
     bindInput();
     document.getElementById("svc-stage-name").textContent = stage.name;
     lastTs = 0;
@@ -80,26 +95,285 @@ const Cooking = (() => {
     render();
   }
 
+  /* ---------- シーン構築 ---------- */
+  function buildScene() {
+    const canvas = document.getElementById("kitchen");
+    if (!renderer) {
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    }
+
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1410);
+    scene.fog = new THREE.Fog(0x1a1410, 22, 40);
+
+    camera = new THREE.PerspectiveCamera(48, 16 / 9, 0.1, 100);
+    camera.position.set(0, 12.5, 13.5);
+    camera.lookAt(0, 0.8, -0.5);
+
+    // ライト
+    const hemi = new THREE.HemisphereLight(0xfff0dd, 0x2a211a, 0.85);
+    scene.add(hemi);
+    const dir = new THREE.DirectionalLight(0xfff2e0, 0.9);
+    dir.position.set(6, 14, 8);
+    scene.add(dir);
+    const dir2 = new THREE.DirectionalLight(0xffd9a0, 0.25);
+    dir2.position.set(-8, 6, 4);
+    scene.add(dir2);
+
+    // 床
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(24, 20),
+      new THREE.MeshStandardMaterial({ color: 0x35291d, roughness: 0.95 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    scene.add(floor);
+    // 床のタイル目地
+    const grid = new THREE.GridHelper(24, 24, 0x4a3c2e, 0x2a2017);
+    grid.position.y = 0.01;
+    scene.add(grid);
+
+    // 奥の壁（暖簾風）
+    const wall = new THREE.Mesh(
+      new THREE.PlaneGeometry(24, 9),
+      new THREE.MeshStandardMaterial({ color: 0x2a211a, roughness: 1 })
+    );
+    wall.position.set(0, 4.5, -8.5);
+    scene.add(wall);
+    const noren = new THREE.Mesh(
+      new THREE.PlaneGeometry(4.4, 2.4),
+      new THREE.MeshStandardMaterial({ color: 0xd94f3d, roughness: 0.9 })
+    );
+    noren.position.set(0, 6.6, -8.4);
+    scene.add(noren);
+    noren.add(makeLabelSprite("", "鮨", { big: 120, sx: 2.2, sy: 2.2, y: 0 }));
+
+    // ステーション
+    buildStations();
+
+    // 作業できる位置のリング
+    ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.7, 1.0, 28),
+      new THREE.MeshBasicMaterial({ color: 0xe8b84b, transparent: true, opacity: 0.7, side: THREE.DoubleSide })
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.05;
+    ring.visible = false;
+    scene.add(ring);
+
+    // シェフ
+    chef = buildChef();
+    scene.add(chef);
+
+    // 持っているお皿の中身ラベル（頭上・常にカメラを向く）
+    plateLabel = makePlateLabel([]);
+    plateLabel.visible = false;
+    scene.add(plateLabel);
+
+    // リサイズ
+    resizeFn = () => resize();
+    window.addEventListener("resize", resizeFn);
+    resize();
+  }
+
   function buildStations() {
-    const pad = 14, gap = 7;
     const kindOf = id =>
       id === "serve" ? "serve" : id === "trash" ? "trash" :
       id === "plate" ? "plate" : "step";
-    const place = (ids, y) => {
+
+    const place = (ids, z) => {
       const n = ids.length;
-      const tw = (W - 2 * pad - (n - 1) * gap) / n;   // 段の数に合わせて幅を調整
-      return ids.map((id, i) => {
-        const x = pad + i * (tw + gap);
-        return {
-          id, x, y, w: tw, h: TILE_H,
-          cx: x + tw / 2, cy: y + TILE_H / 2, kind: kindOf(id),
-        };
+      ids.forEach((id, i) => {
+        const x = n === 1 ? 0 : -SPREAD + (i * (SPREAD * 2)) / (n - 1);
+        const meta = EXTRA[id] || ACTIONS[id];
+        const color = COLORS[id] != null ? COLORS[id] : 0x3a2e23;
+
+        const group = new THREE.Group();
+        group.position.set(x, 0, z);
+
+        // カウンター土台
+        const base = new THREE.Mesh(
+          new THREE.BoxGeometry(1.9, 0.6, 1.5),
+          new THREE.MeshStandardMaterial({ color: 0x3a2e23, roughness: 0.8 })
+        );
+        base.position.y = 0.3;
+        group.add(base);
+
+        // 天板（台の色 / ハイライト用）
+        const top = new THREE.Mesh(
+          new THREE.BoxGeometry(1.7, 0.35, 1.3),
+          new THREE.MeshStandardMaterial({ color, roughness: 0.6, emissive: 0x000000 })
+        );
+        top.position.y = 0.78;
+        group.add(top);
+
+        // アイコン＋名前のラベル
+        const label = makeLabelSprite(meta.icon, meta.label, { y: 1.9 });
+        group.add(label);
+
+        scene.add(group);
+        state.stations.push({ id, x, z, kind: kindOf(id), group, top });
       });
     };
-    state.stations = [
-      ...place(LAYOUT.top, 14),
-      ...place(LAYOUT.bottom, H - 14 - TILE_H),
-    ];
+
+    place(LAYOUT.far, FAR_Z);
+    place(LAYOUT.near, NEAR_Z);
+  }
+
+  function buildChef() {
+    const g = new THREE.Group();
+    const skin = 0xf0c89a, coat = 0xf5ead6, pants = 0x2e4663, hat = 0xffffff;
+
+    const legs = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.42, 0.46, 0.5, 16),
+      new THREE.MeshStandardMaterial({ color: pants, roughness: 0.8 })
+    );
+    legs.position.y = 0.25; g.add(legs);
+
+    const body = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.46, 0.46, 0.75, 16),
+      new THREE.MeshStandardMaterial({ color: coat, roughness: 0.7 })
+    );
+    body.position.y = 0.88; g.add(body);
+
+    // 帯（前掛け）
+    const belt = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.47, 0.47, 0.16, 16),
+      new THREE.MeshStandardMaterial({ color: 0xd94f3d, roughness: 0.7 })
+    );
+    belt.position.y = 0.62; g.add(belt);
+
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.34, 20, 16),
+      new THREE.MeshStandardMaterial({ color: skin, roughness: 0.6 })
+    );
+    head.position.y = 1.52; g.add(head);
+
+    const hatBase = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.3, 0.32, 0.4, 16),
+      new THREE.MeshStandardMaterial({ color: hat, roughness: 0.9 })
+    );
+    hatBase.position.y = 1.92; g.add(hatBase);
+    const hatPuff = new THREE.Mesh(
+      new THREE.SphereGeometry(0.34, 16, 12),
+      new THREE.MeshStandardMaterial({ color: hat, roughness: 0.9 })
+    );
+    hatPuff.position.y = 2.18; g.add(hatPuff);
+
+    // 鼻先の向き目印（小さな前髪/正面マーク）— 正面 +z
+    const nose = new THREE.Mesh(
+      new THREE.SphereGeometry(0.06, 8, 8),
+      new THREE.MeshStandardMaterial({ color: 0x111111 })
+    );
+    nose.position.set(-0.12, 1.55, 0.31); g.add(nose);
+    const nose2 = nose.clone(); nose2.position.x = 0.12; g.add(nose2);
+
+    // 手に持つお皿（正面 +z 側）
+    plateMesh = new THREE.Group();
+    const plate = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.4, 0.34, 0.06, 20),
+      new THREE.MeshStandardMaterial({ color: 0xfaf6ee, roughness: 0.4 })
+    );
+    plateMesh.add(plate);
+    plateMesh.position.set(0, 1.0, 0.62);
+    plateMesh.visible = false;
+    g.add(plateMesh);
+
+    // 接地影
+    const shadow = new THREE.Mesh(
+      new THREE.CircleGeometry(0.55, 24),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28 })
+    );
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.y = 0.02; g.add(shadow);
+
+    return g;
+  }
+
+  /* ---------- スプライト（絵文字ラベル） ---------- */
+  function makeCanvasTexture(draw, w, h) {
+    const cv = document.createElement("canvas");
+    cv.width = w; cv.height = h;
+    const c = cv.getContext("2d");
+    draw(c, w, h);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.anisotropy = 4;
+    return tex;
+  }
+
+  function makeLabelSprite(emoji, label, opts = {}) {
+    const big = opts.big || 96;
+    const tex = makeCanvasTexture((c, w, h) => {
+      c.clearRect(0, 0, w, h);
+      c.textAlign = "center"; c.textBaseline = "middle";
+      if (emoji) {
+        c.font = big + "px serif";
+        c.fillText(emoji, w / 2, label ? h * 0.40 : h * 0.5);
+      }
+      if (label) {
+        c.font = "bold 38px sans-serif";
+        c.lineWidth = 6; c.strokeStyle = "rgba(0,0,0,.6)";
+        c.fillStyle = "#f5ead6";
+        c.strokeText(label, w / 2, h * 0.82);
+        c.fillText(label, w / 2, h * 0.82);
+      }
+    }, 256, 256);
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+    const sp = new THREE.Sprite(mat);
+    sp.scale.set(opts.sx || 2.3, opts.sy || 2.3, 1);
+    sp.position.y = opts.y != null ? opts.y : 0;
+    return sp;
+  }
+
+  function makePlateLabel(tray) {
+    const icons = ["🍽️", ...tray.map(id => ACTIONS[id].icon)];
+    const tex = makeCanvasTexture((c, w, h) => {
+      c.clearRect(0, 0, w, h);
+      // 吹き出し
+      c.fillStyle = "rgba(20,16,12,.92)";
+      c.strokeStyle = "#e8b84b"; c.lineWidth = 5;
+      roundRectPath(c, 8, 8, w - 16, h - 16, 24);
+      c.fill(); c.stroke();
+      c.textAlign = "center"; c.textBaseline = "middle";
+      c.font = "60px serif";
+      const step = Math.min(72, (w - 60) / icons.length);
+      const startX = w / 2 - (step * (icons.length - 1)) / 2;
+      icons.forEach((ic, i) => c.fillText(ic, startX + i * step, h / 2));
+    }, 512, 128);
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false });
+    const sp = new THREE.Sprite(mat);
+    sp.scale.set(3.4, 0.85, 1);
+    sp.renderOrder = 999;
+    return sp;
+  }
+
+  function updatePlateLabel() {
+    if (plateLabel) {
+      if (plateLabel.material.map) plateLabel.material.map.dispose();
+      const next = makePlateLabel(state.tray);
+      plateLabel.material.map = next.material.map;
+      plateLabel.material.needsUpdate = true;
+    }
+  }
+
+  function roundRectPath(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+  }
+
+  function resize() {
+    if (!renderer || !camera) return;
+    const wrap = document.querySelector(".kitchen-wrap");
+    const w = (wrap && wrap.clientWidth) || 760;
+    const h = Math.round(w * 9 / 16);
+    renderer.setSize(w, h, true);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
   }
 
   /* ---------- ループ ---------- */
@@ -110,7 +384,7 @@ const Cooking = (() => {
     lastTs = ts;
 
     update(dt);
-    draw();
+    render3D();
     renderDynamic();
 
     rafId = requestAnimationFrame(loop);
@@ -120,24 +394,22 @@ const Cooking = (() => {
     state.timeLeft -= dt;
     if (state.actionCd > 0) state.actionCd -= dt;
 
-    // 移動
-    let dx = (state.input.right ? 1 : 0) - (state.input.left ? 1 : 0);
-    let dy = (state.input.down ? 1 : 0) - (state.input.up ? 1 : 0);
-    if (dx || dy) {
-      const len = Math.hypot(dx, dy) || 1;
-      state.px += (dx / len) * state.moveSpeed * dt;
-      state.py += (dy / len) * state.moveSpeed * dt;
-      if (dx) state.facing = dx > 0 ? 1 : -1;
+    // 移動（up=奥へ -z / down=手前へ +z）
+    const dx = (state.input.right ? 1 : 0) - (state.input.left ? 1 : 0);
+    const dz = (state.input.down ? 1 : 0) - (state.input.up ? 1 : 0);
+    if (dx || dz) {
+      const len = Math.hypot(dx, dz) || 1;
+      state.x += (dx / len) * state.moveSpeed * dt;
+      state.z += (dz / len) * state.moveSpeed * dt;
+      state.facing = Math.atan2(dx, dz);
     }
-    // 移動範囲（上下の台に手が届く通路）
-    const r = 18;
-    state.px = Math.max(25, Math.min(W - 25, state.px));
-    state.py = Math.max(14 + TILE_H + r, Math.min(H - 14 - TILE_H - r, state.py));
+    state.x = Math.max(-BOUND_X, Math.min(BOUND_X, state.x));
+    state.z = Math.max(-BOUND_Z, Math.min(BOUND_Z, state.z));
 
-    // 近くの台を判定
+    // 近くの台
     let best = null, bestD = REACH;
     for (const s of state.stations) {
-      const d = Math.hypot(state.px - s.cx, state.py - s.cy);
+      const d = Math.hypot(state.x - s.x, state.z - s.z);
       if (d < bestD) { bestD = d; best = s; }
     }
     state.nearId = best ? best.id : null;
@@ -150,7 +422,6 @@ const Cooking = (() => {
     }
 
     // 我慢ゲージ
-    let anyLeft = false;
     for (const o of state.orders) {
       o.patience -= dt;
       if (o.patience <= 0) o.leaving = true;
@@ -160,16 +431,17 @@ const Cooking = (() => {
       for (const o of leaving) {
         state.lost++;
         state.combo = 0;
-        addPop(W / 2, 130, "🏃 退店…", "#e88");
+        addPop(0, 3, FAR_Z + 2, "🏃 退店…", "#e88");
         log(`💢 ${o.recipe.name} のお客さんが帰ってしまった…`, "bad");
       }
       state.orders = state.orders.filter(o => !o.leaving);
-      anyLeft = true;
+      renderOrders();
     }
-    if (anyLeft) renderOrders();
 
-    // 演出の寿命
+    // 演出
     for (const p of state.pops) p.life -= dt;
+    const dead = state.pops.filter(p => p.life <= 0);
+    for (const p of dead) { scene.remove(p.sprite); if (p.sprite.material.map) p.sprite.material.map.dispose(); p.sprite.material.dispose(); }
     state.pops = state.pops.filter(p => p.life > 0);
 
     // 終了判定
@@ -205,13 +477,13 @@ const Cooking = (() => {
     if (!id) { flashMsg("近くに台がないよ", true); return; }
     const s = state.stations.find(x => x.id === id);
 
-    // お皿を取る
     if (s.kind === "plate") {
       if (state.hasPlate) { flashMsg("もうお皿を持っているよ"); return; }
       state.hasPlate = true;
       state.tray = [];
       markStation(id);
-      addPop(s.cx, s.cy, "🍽️ お皿GET", "#6fb0d8");
+      updatePlateLabel();
+      addPop(s.x, 2.2, s.z, "🍽️ お皿GET", "#6fb0d8");
       renderOrders();
       return;
     }
@@ -222,7 +494,8 @@ const Cooking = (() => {
       if (!state.hasPlate) { flashMsg("片付けるお皿がない"); return; }
       state.hasPlate = false;
       state.tray = [];
-      addPop(state.px, state.py - 28, "片付けた", "#b6a489");
+      updatePlateLabel();
+      addPop(state.x, 2.6, state.z, "片付けた", "#b6a489");
       flashMsg("お皿を片付けた");
       renderOrders();
       return;
@@ -232,7 +505,8 @@ const Cooking = (() => {
     if (!state.hasPlate) { flashMsg("先にお皿を取ろう！", true); return; }
     state.tray.push(id);
     markStation(id);
-    addPop(s.cx, s.cy, `+${ACTIONS[id].icon}`, "#6fae5a");
+    updatePlateLabel();
+    addPop(s.x, 2.0, s.z, `+${ACTIONS[id].icon}`, "#6fae5a");
     renderOrders();
   }
 
@@ -244,21 +518,20 @@ const Cooking = (() => {
       o => o.recipe.steps.slice(0, -1).join(",") === trayKey
     );
     if (matches.length === 0) {
-      // 注文と一致しない
       state.mistakes++;
       state.combo = 0;
       const penalty = Math.max(0.4, 2.0 - state.techMissResist / 60);
-      // 一番急いでいる客がさらに不機嫌に
       const urgent = state.orders.slice().sort((a, b) => a.patience - b.patience)[0];
       if (urgent) urgent.patience = Math.max(0, urgent.patience - penalty);
-      addPop(state.px, state.py - 28, "×注文と違う", "#e88");
-      flashMsg("どの注文とも違う！ ゴミ箱でやり直し", true);
+      addPop(state.x, 2.6, state.z, "×注文と違う", "#e88");
+      flashMsg("どの注文とも違う！ 片付けでやり直し", true);
       return;
     }
-    matches.sort((a, b) => a.patience - b.patience); // 急ぎの客から
+    matches.sort((a, b) => a.patience - b.patience);
     completeOrder(matches[0]);
     state.tray = [];
-    state.hasPlate = false;     // お皿は提供で出ていく → 取り直し
+    state.hasPlate = false;
+    updatePlateLabel();
     renderOrders();
   }
 
@@ -276,7 +549,7 @@ const Cooking = (() => {
 
     state.orders = state.orders.filter(x => x.id !== o.id);
     const star = speedRatio > 0.6 ? "✨" : "";
-    addPop(state.px, state.py - 30, `+${gained}`, "#e8b84b");
+    addPop(state.x, 2.8, state.z, `+${gained}`, "#e8b84b");
     log(`🍣 提供！「${o.recipe.name}」 +${gained}点 ${star}${state.combo > 1 ? ` (${state.combo}コンボ)` : ""}`, "good");
   }
 
@@ -286,7 +559,7 @@ const Cooking = (() => {
     state.finished = true;
     cancelAnimationFrame(rafId);
     rafId = null;
-    unbindInput();
+    teardown();
     state.onFinish({
       score: state.score,
       served: state.served,
@@ -301,7 +574,12 @@ const Cooking = (() => {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = null;
     if (state) state.running = false;
+    teardown();
+  }
+
+  function teardown() {
     unbindInput();
+    if (resizeFn) { window.removeEventListener("resize", resizeFn); resizeFn = null; }
   }
 
   /* ---------- 入力 ---------- */
@@ -328,7 +606,6 @@ const Cooking = (() => {
     window.addEventListener("keydown", keyDown);
     window.addEventListener("keyup", keyUp);
 
-    // 画面上の十字キー / ボタン（スマホ用）
     const bindHold = (sel, dir) => {
       const el = document.querySelector(sel);
       if (!el) return;
@@ -362,124 +639,73 @@ const Cooking = (() => {
     touchHandlers = [];
   }
 
-  /* ---------- 描画（canvas） ---------- */
-  let ctx = null, canvas = null, flashMap = {};
+  /* ---------- 3D描画 ---------- */
+  function markStation(id) { flashMap[id] = 0.3; }
 
-  function setupCanvas() {
-    canvas = document.getElementById("kitchen");
-    canvas.width = W;
-    canvas.height = H;
-    ctx = canvas.getContext("2d");
-    flashMap = {};
+  function addPop(x, y, z, text, color) {
+    const tex = makeCanvasTexture((c, w, h) => {
+      c.clearRect(0, 0, w, h);
+      c.textAlign = "center"; c.textBaseline = "middle";
+      c.font = "bold 64px sans-serif";
+      c.lineWidth = 8; c.strokeStyle = "rgba(0,0,0,.7)";
+      c.strokeText(text, w / 2, h / 2);
+      c.fillStyle = color;
+      c.fillText(text, w / 2, h / 2);
+    }, 320, 128);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false }));
+    sp.scale.set(3.2, 1.3, 1);
+    sp.position.set(x, y, z);
+    sp.renderOrder = 1000;
+    scene.add(sp);
+    state.pops.push({ sprite: sp, life: 0.9, y0: y });
   }
 
-  function markStation(id) { flashMap[id] = 0.25; }
-
-  function roundRect(x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
-  }
-
-  function draw() {
-    if (!ctx) return;
-    // 床
-    ctx.fillStyle = "#241c14";
-    ctx.fillRect(0, 0, W, H);
-    // 通路のタイル模様
-    ctx.fillStyle = "#2a2017";
-    for (let x = 0; x < W; x += 40) {
-      for (let y = TILE_H + 20; y < H - TILE_H - 20; y += 40) {
-        if (((x + y) / 40) % 2 === 0) ctx.fillRect(x, y, 40, 40);
-      }
+  function render3D() {
+    if (!renderer) return;
+    // シェフ
+    chef.position.set(state.x, 0, state.z);
+    chef.rotation.y = state.facing;
+    plateMesh.visible = state.hasPlate;
+    // お皿ラベル
+    if (state.hasPlate) {
+      plateLabel.visible = true;
+      plateLabel.position.set(state.x, 2.95, state.z);
+    } else {
+      plateLabel.visible = false;
     }
 
-    // ステーション
+    // ステーションのハイライト
     for (const s of state.stations) {
       const near = state.nearId === s.id;
-      const fl = flashMap[s.id] || 0;
-      if (fl > 0) flashMap[s.id] = fl - 0.016;
-      const meta = ACTIONS[s.id] || EXTRA[s.id];
-
-      ctx.save();
-      roundRect(s.x, s.y, s.w, s.h, 12);
-      ctx.fillStyle = COLORS[s.id] || "#3a2e23";
-      ctx.fill();
-      // ハイライト枠
-      ctx.lineWidth = near ? 4 : 1.5;
-      ctx.strokeStyle = near ? "#e8b84b" : "#4a3c2e";
-      if (fl > 0) ctx.strokeStyle = "#fff";
-      ctx.stroke();
-      ctx.restore();
-
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.font = "28px serif";
-      ctx.fillText(meta.icon, s.cx, s.cy - 8);
-      ctx.font = "12px sans-serif";
-      ctx.fillStyle = "#f5ead6";
-      ctx.fillText(meta.label, s.cx, s.cy + 20);
-
-      if (near) {
-        ctx.font = "11px sans-serif";
-        ctx.fillStyle = "#e8b84b";
-        ctx.fillText("◉ 作業できる", s.cx, s.y - 8);
-      }
+      let fl = flashMap[s.id] || 0;
+      if (fl > 0) { fl -= 0.018; flashMap[s.id] = fl; }
+      const m = s.top.material;
+      if (fl > 0) { m.emissive.setHex(0xffffff); m.emissiveIntensity = 0.9; }
+      else if (near) { m.emissive.setHex(0xe8b84b); m.emissiveIntensity = 0.55; }
+      else { m.emissive.setHex(0x000000); m.emissiveIntensity = 0; }
+      // 近くの台は少し浮く
+      s.group.position.y = near ? 0.06 + Math.sin(performance.now() / 200) * 0.03 : 0;
     }
 
-    // プレイヤー
-    const { px, py } = state;
-    ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,.5)";
-    ctx.shadowBlur = 8;
-    ctx.beginPath();
-    ctx.arc(px, py, 18, 0, Math.PI * 2);
-    ctx.fillStyle = "#e8b84b";
-    ctx.fill();
-    ctx.restore();
-    ctx.font = "26px serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("🧑‍🍳", px, py + 1);
-
-    // お皿（頭上の吹き出し）— お皿を持っているときだけ表示
-    if (state.hasPlate) {
-      const icons = ["🍽️", ...state.tray.map(id => ACTIONS[id].icon)];
-      const bw = 22 * icons.length + 14;
-      const bx = px - bw / 2, by = py - 52;
-      ctx.save();
-      roundRect(bx, by, bw, 30, 8);
-      ctx.fillStyle = "rgba(20,16,12,.92)";
-      ctx.fill();
-      ctx.strokeStyle = "#e8b84b";
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      ctx.restore();
-      ctx.font = "18px serif";
-      icons.forEach((ic, i) => ctx.fillText(ic, bx + 18 + i * 22, by + 16));
+    // 作業リング
+    if (state.nearId) {
+      const s = state.stations.find(x => x.id === state.nearId);
+      ring.visible = true;
+      ring.position.set(s.x, 0.05, s.z + (s.z < 0 ? 1.0 : -1.0));
+    } else {
+      ring.visible = false;
     }
 
     // 演出ポップ
     for (const p of state.pops) {
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, Math.min(1, p.life * 1.4));
-      ctx.font = "bold 18px sans-serif";
-      ctx.fillStyle = p.color;
-      ctx.textAlign = "center";
-      ctx.fillText(p.text, p.x, p.y - (1 - p.life) * 30);
-      ctx.restore();
+      p.sprite.position.y = p.y0 + (0.9 - p.life) * 1.6;
+      p.sprite.material.opacity = Math.max(0, Math.min(1, p.life * 1.4));
     }
+
+    renderer.render(scene, camera);
   }
 
-  function addPop(x, y, text, color) {
-    state.pops.push({ x, y, text, color, life: 0.9 });
-  }
-
-  /* ---------- 描画（DOM：注文/HUD） ---------- */
+  /* ---------- DOM（注文/HUD） ---------- */
   function render() { renderOrders(); renderDynamic(); }
 
   function renderDynamic() {
@@ -512,7 +738,6 @@ const Cooking = (() => {
     const trayKey = state.tray.join(",");
     for (const o of state.orders) {
       const stepsNoServe = o.recipe.steps.slice(0, -1);
-      // 今のトレイがこの注文の「途中まで」一致しているか
       let matchLen = 0;
       let isPrefix = state.tray.length <= stepsNoServe.length;
       if (isPrefix) {
