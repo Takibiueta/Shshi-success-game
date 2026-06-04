@@ -117,6 +117,76 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .pos-card .pd { color: var(--ink-dim); font-size: 13px; line-height: 1.5; }
 .pos-card .pbonus { font-size: 12px; color: var(--green); margin-top: 4px; }
 
+/* ---- キャラクター演出（パワプロ風の立ち絵＋セリフ） ---- */
+.chara-panel {
+  background: linear-gradient(160deg, #3a2e23 0%, #2a211a 70%);
+  overflow: hidden;
+}
+.chara-stage {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  min-height: 150px;
+}
+.chara-art {
+  flex: 0 0 132px;
+  width: 132px;
+  height: 156px;
+  align-self: flex-end;
+  filter: drop-shadow(0 6px 10px rgba(0,0,0,.4));
+}
+.chara-art .chara-svg { width: 100%; height: 100%; display: block; }
+.chara-art.pop { animation: chara-pop .32s ease; }
+@keyframes chara-pop {
+  0% { transform: translateY(8px) scale(.92); opacity: 0; }
+  60% { transform: translateY(-3px) scale(1.03); }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+/* ふわふわ待機モーション */
+.chara-art.show .chara-svg { animation: chara-bob 2.6s ease-in-out infinite; }
+@keyframes chara-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+
+.speech-bubble {
+  position: relative;
+  flex: 1;
+  align-self: center;
+  background: #fbf3e2;
+  color: #2a211a;
+  border: 3px solid #e8b84b;
+  border-radius: 16px;
+  padding: 12px 14px;
+  min-height: 78px;
+  box-shadow: 0 4px 0 rgba(0,0,0,.25);
+}
+.speech-bubble::before {
+  content: "";
+  position: absolute;
+  left: -16px; top: 50%;
+  transform: translateY(-50%);
+  border: 9px solid transparent;
+  border-right-color: #e8b84b;
+}
+.speech-bubble::after {
+  content: "";
+  position: absolute;
+  left: -11px; top: 50%;
+  transform: translateY(-50%);
+  border: 7px solid transparent;
+  border-right-color: #fbf3e2;
+}
+.bubble-name {
+  display: inline-block;
+  font-size: 12px; font-weight: 800;
+  color: #fff; background: var(--accent);
+  padding: 2px 10px; border-radius: 999px;
+  margin-bottom: 6px;
+}
+.bubble-text {
+  font-size: 15px; line-height: 1.7; font-weight: 600;
+  min-height: 1.7em;
+}
+.chara-stage.event .chara-art { flex-basis: 120px; width: 120px; height: 144px; }
+
 /* ---- HUD / ステータス ---- */
 .hud { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
 .hud .who { font-size: 18px; font-weight: 800; }
@@ -272,4 +342,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
   .dpad { grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(3, 46px); }
   .action-btn { width: 92px; height: 92px; }
   .noren { font-size: 32px; padding: 18px 26px; }
+  .chara-art, .chara-stage.event .chara-art { flex-basis: 96px; width: 96px; height: 116px; }
+  .chara-stage { gap: 8px; min-height: 124px; }
+  .bubble-text { font-size: 14px; }
 }

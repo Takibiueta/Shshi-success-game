@@ -9,6 +9,7 @@ const Game = (() => {
   let player = null;        // 育成中のプレイヤー
   let logLines = [];
   let pendingPos = null;    // ポジション選択中
+  let pendingReact = null;  // 次の育成画面で出すキャラのセリフ
 
   /* ---------- 画面管理 ---------- */
   function show(id) {
@@ -75,6 +76,7 @@ const Game = (() => {
     };
     logLines = [];
     log(`${p.icon} 「${p.name}」として修行開始！ 目指せミシュラン三つ星！`, "good");
+    pendingReact = { type: "start" };
     show("success");
     renderSuccess();
   }
@@ -129,6 +131,15 @@ const Game = (() => {
 
     renderCommands(stageToday);
     renderLog();
+
+    // キャラのセリフ（状況に応じて表情・話者・内容が変化）
+    let rtype, rctx = { position: player.position, target: "success" };
+    if (stageToday) rtype = "service_day";
+    else if (pendingReact) { rtype = pendingReact.type; Object.assign(rctx, pendingReact.ctx); }
+    else if (player.stats.stamina < 25) rtype = "low_stamina";
+    else rtype = "idle";
+    pendingReact = null;
+    if (typeof Chara !== "undefined") Chara.react(rtype, rctx);
   }
 
   function renderCommands(stageToday) {
@@ -204,14 +215,15 @@ const Game = (() => {
     }
     player.stats[k] = Math.min(100, player.stats[k] + gain);
     const s = STATS[k];
-    if (failed) log(`😣 疲労で練習に身が入らず…「${s.name}」+${gain}`, "bad");
-    else log(`💪 ${s.name}の練習！ +${gain}`, "good");
+    if (failed) { log(`😣 疲労で練習に身が入らず…「${s.name}」+${gain}`, "bad"); pendingReact = { type: "train_fail" }; }
+    else { log(`💪 ${s.name}の練習！ +${gain}`, "good"); pendingReact = { type: "train_good", ctx: { stat: s.name } }; }
     advanceWeek();
   }
 
   function doRest() {
     player.stats.stamina = Math.min(player.stats.maxStamina, player.stats.stamina + 45);
     log(`😴 ゆっくり休んだ。体力が回復した。`, "sys");
+    pendingReact = { type: "rest" };
     advanceWeek();
   }
 
@@ -224,6 +236,7 @@ const Game = (() => {
     const e2 = rand(1, 3);
     player.stats[extra] = Math.min(100, player.stats[extra] + e2);
     log(`🍱 食べ歩きで見聞を広めた。知識+${g} ${STATS[extra].name}+${e2}`, "good");
+    pendingReact = { type: "study" };
     advanceWeek();
   }
 
@@ -248,7 +261,9 @@ const Game = (() => {
   function showEvent(ev) {
     show("event");
     document.getElementById("ev-title").textContent = ev.title;
-    document.getElementById("ev-text").textContent = ev.text;
+    if (typeof Chara !== "undefined") {
+      Chara.say({ who: "me", expr: "surprised", text: ev.text, target: "event", position: player.position });
+    }
     const wrap = document.getElementById("ev-choices");
     wrap.innerHTML = "";
     ev.choices.forEach(c => {
@@ -271,6 +286,7 @@ const Game = (() => {
       }
     }
     log(`📖 ${choice.msg}`, "good");
+    pendingReact = { type: "event_done", ctx: { msg: choice.msg } };
     show("success");
     renderSuccess();
   }
@@ -290,6 +306,8 @@ const Game = (() => {
     player.serviceCount++;
 
     log(`🏁 営業終了「${stage.name}」 ${result.score}点 → 店評価 +${gainedStore}`, "good");
+    const rateForReact = result.total ? result.served / result.total : 1;
+    pendingReact = { type: rateForReact >= 0.6 ? "service_good" : "service_bad" };
 
     // 結果画面
     show("service-result");
