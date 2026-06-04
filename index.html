@@ -96,11 +96,24 @@
         <div class="score-box"><span id="svc-score">0</span></div>
       </div>
 
-      <div class="station-title">📋 注文（タップして対応する一品を選ぶ）</div>
+      <div class="station-title">📋 注文（手順どおりに組み立てて提供口へ運ぼう）</div>
       <div id="orders" class="orders"></div>
 
-      <div class="station-title">🍳 ステーション（手順どおりにタップして調理 → 提供）</div>
-      <div id="stations" class="stations"></div>
+      <div class="station-title">🍳 キッチン（3D・シェフを動かして食材を運ぶ）</div>
+      <div class="kitchen-wrap">
+        <canvas id="kitchen"></canvas>
+      </div>
+
+      <div class="controls">
+        <div class="dpad">
+          <button id="pad-up"    class="pad">▲</button>
+          <button id="pad-left"  class="pad">◀</button>
+          <button id="pad-down"  class="pad">▼</button>
+          <button id="pad-right" class="pad">▶</button>
+        </div>
+        <button id="btn-action" class="btn gold action-btn">作業<br><small>SPACE</small></button>
+      </div>
+      <div class="muted ctrl-hint">操作：<b>WASD / 矢印キー</b>で移動、<b>スペース / Enter</b>で作業（スマホは下のボタン）。まず<b>お皿🍽️</b>を取り→食材・加工台の順に手順どおり組み立て→<b>提供口🛎️</b>へ運ぶ。間違えたら<b>片付け🗑️</b>でやり直し（1皿ずつ）。</div>
     </div>
   </section>
 
@@ -126,8 +139,9 @@
 
 </div>
 
-<script src="js/data.js?v=2"></script>
-<script src="js/cooking.js?v=2"></script>
-<script src="js/game.js?v=2"></script>
+<script src="https://unpkg.com/three@0.150.1/build/three.min.js"></script>
+<script src="js/data.js?v=5"></script>
+<script src="js/cooking.js?v=5"></script>
+<script src="js/game.js?v=5"></script>
 </body>
 </html>

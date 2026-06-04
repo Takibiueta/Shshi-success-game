@@ -187,20 +187,60 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .order.danger .o-pat > i { background: var(--accent); }
 
 .station-title { font-size: 13px; color: var(--ink-dim); margin: 4px 0 8px; }
-.stations { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
-.station {
+
+/* ---- キッチン（canvas） ---- */
+.kitchen-wrap {
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #241c14;
+  line-height: 0;
+}
+#kitchen {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;
+}
+
+/* ---- 操作（スマホ用十字キー＋ボタン） ---- */
+.controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+.dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 52px);
+  grid-template-rows: repeat(3, 52px);
+  gap: 4px;
+}
+.pad {
   background: var(--panel-light);
   border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 10px 4px;
+  border-radius: 10px;
   color: var(--ink);
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  font-size: 18px;
+  box-shadow: 0 3px 0 #1c1610;
+  user-select: none;
+  touch-action: none;
 }
-.station:hover { border-color: var(--accent2); }
-.station .st-i { font-size: 24px; }
-.station .st-l { font-size: 12px; }
-.station.serve { background: linear-gradient(180deg, var(--green), #4c8a3c); color:#fff; border:none; }
-.station.cut   { background: linear-gradient(180deg,#8a6fae,#5a4c8a); color:#fff; border:none; }
+.pad:active { transform: translateY(2px); box-shadow: 0 1px 0 #1c1610; border-color: var(--accent2); }
+#pad-up    { grid-area: 1 / 2; }
+#pad-left  { grid-area: 2 / 1; }
+#pad-down  { grid-area: 3 / 2; }
+#pad-right { grid-area: 2 / 3; }
+.action-btn {
+  width: 110px; height: 110px; border-radius: 50%;
+  font-size: 18px; line-height: 1.2;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  user-select: none; touch-action: none;
+}
+.action-btn small { font-size: 11px; opacity: .7; }
+.action-btn:active { transform: translateY(2px); }
+.ctrl-hint { margin-top: 10px; font-size: 12px; }
 
 .flash { animation: flash .3s; }
 @keyframes flash { 0%{ filter:brightness(2);} 100%{ filter:none; } }
@@ -229,6 +269,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 @media (max-width: 560px) {
   .pos-grid { grid-template-columns: 1fr; }
   .cmd-grid { grid-template-columns: repeat(2, 1fr); }
-  .stations { grid-template-columns: repeat(4, 1fr); }
+  .dpad { grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(3, 46px); }
+  .action-btn { width: 92px; height: 92px; }
   .noren { font-size: 32px; padding: 18px 26px; }
 }
