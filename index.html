@@ -40,43 +40,119 @@
     </div>
   </section>
 
-  <!-- ===== 育成（サクセス） ===== -->
-  <section id="success" class="screen">
-    <div class="panel chara-panel">
-      <div class="chara-stage">
-        <div id="chara-art" class="chara-art"></div>
-        <div class="speech-bubble">
-          <div id="chara-name" class="bubble-name"></div>
-          <div id="chara-text" class="bubble-text"></div>
-        </div>
+  <!-- ===== 育成（サクセス）／ パワプロ風レイアウト ===== -->
+  <section id="success" class="screen pawa">
+    <div class="pawa-scene">
+      <!-- 背景イラスト（寿司屋の店先） -->
+      <div class="pawa-bg">
+        <svg viewBox="0 0 800 480" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="pw-sky" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#ffe3b3"/>
+              <stop offset="0.55" stop-color="#ffc187"/>
+              <stop offset="1" stop-color="#f4a06a"/>
+            </linearGradient>
+            <linearGradient id="pw-wood" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#d9b685"/>
+              <stop offset="1" stop-color="#b88a55"/>
+            </linearGradient>
+          </defs>
+          <rect width="800" height="480" fill="url(#pw-sky)"/>
+          <circle cx="650" cy="118" r="80" fill="#fff4d6" opacity="0.7"/>
+          <rect y="372" width="800" height="108" fill="#46342a"/>
+          <rect y="372" width="800" height="14" fill="#5a4636"/>
+          <rect x="60" y="150" width="680" height="226" fill="url(#pw-wood)" stroke="#8a6a44" stroke-width="2"/>
+          <rect x="60" y="150" width="680" height="16" fill="rgba(0,0,0,0.18)"/>
+          <path d="M34 168 L120 92 L680 92 L766 168 Z" fill="#5b4636"/>
+          <rect x="34" y="168" width="732" height="14" fill="#6e5644"/>
+          <g stroke="#b89a6a" stroke-width="3">
+            <rect x="110" y="200" width="150" height="112" fill="#f6efd9"/>
+            <line x1="110" y1="256" x2="260" y2="256"/><line x1="160" y1="200" x2="160" y2="312"/><line x1="210" y1="200" x2="210" y2="312"/>
+            <rect x="540" y="200" width="150" height="112" fill="#f6efd9"/>
+            <line x1="540" y1="256" x2="690" y2="256"/><line x1="590" y1="200" x2="590" y2="312"/><line x1="640" y1="200" x2="640" y2="312"/>
+          </g>
+          <rect x="338" y="212" width="124" height="164" fill="#241a13"/>
+          <rect x="326" y="206" width="148" height="64" rx="4" fill="#c0392b"/>
+          <g stroke="#9c2b20" stroke-width="3">
+            <line x1="363" y1="210" x2="363" y2="270"/><line x1="400" y1="210" x2="400" y2="270"/><line x1="437" y1="210" x2="437" y2="270"/>
+          </g>
+          <text x="400" y="249" text-anchor="middle" font-size="34" font-weight="900" fill="#fff" font-family="serif">鮨</text>
+          <g>
+            <line x1="210" y1="120" x2="210" y2="150" stroke="#3a2a20" stroke-width="3"/>
+            <ellipse cx="210" cy="172" rx="26" ry="32" fill="#d2382c"/>
+            <rect x="200" y="142" width="20" height="8" fill="#2a211a"/><rect x="200" y="196" width="20" height="8" fill="#2a211a"/>
+            <text x="210" y="181" text-anchor="middle" font-size="20" fill="#fff" font-family="serif">寿</text>
+          </g>
+          <g>
+            <line x1="592" y1="120" x2="592" y2="150" stroke="#3a2a20" stroke-width="3"/>
+            <ellipse cx="592" cy="172" rx="26" ry="32" fill="#d2382c"/>
+            <rect x="582" y="142" width="20" height="8" fill="#2a211a"/><rect x="582" y="196" width="20" height="8" fill="#2a211a"/>
+            <text x="592" y="181" text-anchor="middle" font-size="20" fill="#fff" font-family="serif">司</text>
+          </g>
+          <ellipse cx="92" cy="384" rx="42" ry="26" fill="#4c7a3a"/>
+          <ellipse cx="712" cy="384" rx="42" ry="26" fill="#4c7a3a"/>
+        </svg>
       </div>
-    </div>
 
-    <div class="panel">
-      <div class="hud">
-        <div class="who" id="succ-who"></div>
-        <div style="display:flex;gap:8px;">
-          <span class="chip" id="succ-week"></span>
+      <!-- 上部ステータスバー -->
+      <div class="pawa-top">
+        <div class="turn-badge">
+          <small>残り</small><b id="succ-turns">12</b><small>週</small>
+        </div>
+        <div class="top-mid">
+          <span class="ti-week" id="succ-week"></span>
+          <div class="ti-stamina">
+            <span class="lab">💪体力</span>
+            <div class="sta-bar"><i id="succ-sta-fill"></i></div>
+            <b id="succ-sta-num">100</b>
+          </div>
+        </div>
+        <div class="top-right">
           <span class="chip" id="succ-store"></span>
         </div>
       </div>
+
+      <!-- 営業日告知 -->
+      <div class="pawa-notice" id="succ-notice"></div>
+
+      <!-- 左：ステータスカード -->
+      <div class="stat-card">
+        <div class="sc-head">
+          <span class="sc-icon" id="succ-who-icon">🍣</span>
+          <span class="sc-name" id="succ-name">あなた</span>
+        </div>
+        <div class="sc-stats" id="stat-bars"></div>
+      </div>
+
+      <!-- 右：目標ランク＆ヒント -->
+      <div class="pawa-right">
+        <div class="rank-gauge">
+          <div class="rg-label">目標</div>
+          <div class="rg-val" id="succ-rank">☆</div>
+          <div class="rg-sub">ミシュラン</div>
+        </div>
+        <button class="hint-btn" id="btn-hint">💡 育成のヒント</button>
+      </div>
+
+      <!-- キャラの立ち絵 -->
+      <div class="pawa-chara">
+        <div id="chara-art" class="chara-art"></div>
+      </div>
+      <!-- セリフ -->
+      <div class="pawa-bubble speech-bubble">
+        <div id="chara-name" class="bubble-name"></div>
+        <div id="chara-text" class="bubble-text"></div>
+      </div>
     </div>
 
-    <div class="panel">
-      <h2>ステータス</h2>
-      <div id="stat-bars"></div>
-    </div>
+    <!-- 下部コマンドバー -->
+    <div class="cmd-bar" id="cmd-grid"></div>
 
-    <div class="panel">
-      <div id="succ-notice" class="muted" style="margin-bottom:10px;"></div>
-      <h2>今週のコマンド</h2>
-      <div id="cmd-grid" class="cmd-grid"></div>
-    </div>
-
-    <div class="panel">
-      <h2>修行ログ</h2>
+    <!-- ログ（折りたたみ） -->
+    <details class="pawa-log">
+      <summary>📜 修行ログ</summary>
       <div id="log"></div>
-    </div>
+    </details>
   </section>
 
   <!-- ===== イベント ===== -->
@@ -156,9 +232,9 @@
 </div>
 
 <script src="https://unpkg.com/three@0.150.1/build/three.min.js"></script>
-<script src="js/data.js?v=6"></script>
-<script src="js/chara.js?v=6"></script>
-<script src="js/cooking.js?v=6"></script>
-<script src="js/game.js?v=6"></script>
+<script src="js/data.js?v=7"></script>
+<script src="js/chara.js?v=7"></script>
+<script src="js/cooking.js?v=7"></script>
+<script src="js/game.js?v=7"></script>
 </body>
 </html>

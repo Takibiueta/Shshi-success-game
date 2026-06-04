@@ -86,36 +86,58 @@ const Game = (() => {
     return TRAINABLE.reduce((s, k) => s + player.stats[k], 0);
   }
 
+  // パワプロ風のランク文字（0-100 → G〜S）
+  function gradeLetter(v) {
+    if (v >= 90) return "S";
+    if (v >= 80) return "A";
+    if (v >= 70) return "B";
+    if (v >= 60) return "C";
+    if (v >= 50) return "D";
+    if (v >= 35) return "E";
+    if (v >= 20) return "F";
+    return "G";
+  }
+
+  // 今のステータスから見込みのミシュラン評価
+  function projectedTier() {
+    const overall = Math.round(statTotal() * 0.7 + player.storeScore / 6);
+    let tier = MICHELIN[0];
+    for (const m of MICHELIN) if (overall >= m.min) tier = m;
+    return tier;
+  }
+
   function renderSuccess() {
     const p = POSITIONS[player.position];
-    // HUD
-    document.getElementById("succ-who").innerHTML =
-      `${p.icon} ${p.name} <small>「${p.catch}」</small>`;
-    document.getElementById("succ-week").textContent = `${player.week}週目 / ${TOTAL_WEEKS}`;
+    // 上部ステータスバー
+    document.getElementById("succ-turns").textContent = Math.max(0, TOTAL_WEEKS - player.week + 1);
+    document.getElementById("succ-week").textContent = `${player.week} / ${TOTAL_WEEKS} 週目`;
     document.getElementById("succ-store").innerHTML =
-      `店の評価 <b style="color:var(--accent2)">${storeStarLabel(player.storeScore)}</b>`;
+      `店 <b style="color:var(--accent2)">${storeStarLabel(player.storeScore)}</b>`;
+    const st = player.stats.stamina;
+    document.getElementById("succ-sta-fill").style.width = st + "%";
+    document.getElementById("succ-sta-num").textContent = st;
 
-    // ステータスバー
+    // ステータスカード
+    document.getElementById("succ-who-icon").textContent = p.icon;
+    document.getElementById("succ-name").textContent = p.name;
+    const tier = projectedTier();
+    document.getElementById("succ-rank").textContent =
+      tier.stars > 0 ? "★".repeat(tier.stars) : (tier.min >= 180 ? "🏅" : "☆");
+
+    // ステータス（ランク文字＋数値）
     const sw = document.getElementById("stat-bars");
     sw.innerHTML = "";
     for (const k of TRAINABLE) {
       const s = STATS[k];
       const v = player.stats[k];
+      const g = gradeLetter(v);
       sw.innerHTML += `
-        <div class="stat-row">
-          <span class="sn">${s.icon}${s.name}</span>
-          <span class="bar"><i style="width:${Math.min(100,v)}%"></i></span>
-          <span class="sv">${v}</span>
+        <div class="sc-stat">
+          <span class="ss-name">${s.icon}${s.name}</span>
+          <span class="ss-grade g-${g}">${g}</span>
+          <span class="ss-val">${v}</span>
         </div>`;
     }
-    // 体力
-    const st = player.stats.stamina;
-    sw.innerHTML += `
-      <div class="stat-row">
-        <span class="sn">${STATS.stamina.icon}${STATS.stamina.name}</span>
-        <span class="bar sta"><i style="width:${st}%"></i></span>
-        <span class="sv">${st}</span>
-      </div>`;
 
     // 次の営業日告知
     const nextStage = SERVICE_STAGES.find(s => s.day >= player.week);
@@ -166,10 +188,11 @@ const Game = (() => {
       const cost = 28;
       const el = document.createElement("button");
       el.className = "cmd";
+      el.dataset.kind = k;
       el.disabled = player.stats.stamina < cost;
       el.innerHTML = `
         <span class="ci">${s.icon}</span>
-        <span class="ct">${s.name}の練習${isMain ? " ★" : ""}</span>
+        <span class="ct">${s.name}${isMain ? "★" : ""}</span>
         <span class="cd">+${gain.min}〜${gain.max} / 体力-${cost}</span>`;
       el.onclick = () => doTrain(k, cost);
       grid.appendChild(el);
@@ -177,6 +200,7 @@ const Game = (() => {
     // 休養
     const rest = document.createElement("button");
     rest.className = "cmd rest";
+    rest.dataset.kind = "rest";
     rest.innerHTML = `<span class="ci">😴</span><span class="ct">休養</span><span class="cd">体力+45 回復</span>`;
     rest.onclick = () => doRest();
     grid.appendChild(rest);
@@ -184,6 +208,7 @@ const Game = (() => {
     // 食べ歩き（知識寄りのバランス）
     const study = document.createElement("button");
     study.className = "cmd";
+    study.dataset.kind = "study";
     study.disabled = player.stats.stamina < 15;
     study.innerHTML = `<span class="ci">🍱</span><span class="ct">食べ歩き</span><span class="cd">知識+少 / 体力-15</span>`;
     study.onclick = () => doStudy();
@@ -363,6 +388,10 @@ const Game = (() => {
     initTitle();
     document.getElementById("btn-pos-back").onclick = () => show("title");
     document.getElementById("btn-pos-decide").onclick = decidePosition;
+    const hint = document.getElementById("btn-hint");
+    if (hint) hint.onclick = () => {
+      if (typeof Chara !== "undefined") Chara.react("hint", { position: player.position, target: "success" });
+    };
     show("title");
   }
 
