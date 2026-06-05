@@ -396,21 +396,76 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .ss-preview { font-size: 11px; font-weight: 800; color: #6fae5a; white-space: nowrap; }
 
 /* ===== アイテムボタン＆モーダル ===== */
-.item-btn {
-  position: absolute; left: 10px; bottom: 10px; z-index: 5;
+.corner-btn {
+  position: absolute; left: 10px; z-index: 5;
   display: flex; flex-direction: column; align-items: center;
   background: rgba(26,19,14,.86); border: 2px solid var(--accent2); border-radius: 14px;
-  padding: 5px 12px; color: var(--ink); box-shadow: 0 4px 10px rgba(0,0,0,.45);
+  padding: 4px 10px; color: var(--ink); box-shadow: 0 4px 10px rgba(0,0,0,.45);
+  min-width: 70px;
 }
-.item-btn:active { transform: translateY(2px); }
-.item-btn .ib-icon { font-size: 26px; line-height: 1; }
-.item-btn .ib-label { font-size: 11px; font-weight: 700; }
-.item-btn .item-count {
+.corner-btn:active { transform: translateY(2px); }
+.corner-btn .ib-icon { font-size: 24px; line-height: 1.1; }
+.corner-btn .ib-label { font-size: 11px; font-weight: 700; }
+.alloc-btn { bottom: 74px; border-color: #6fae5a; }
+.item-btn { bottom: 10px; }
+.corner-btn .item-count, .corner-btn .exp-count {
   position: absolute; top: -8px; right: -8px;
   min-width: 22px; height: 22px; line-height: 18px; padding: 0 4px;
-  background: var(--accent); color: #fff; border: 2px solid #15100c;
-  border-radius: 999px; font-size: 12px; font-weight: 800; text-align: center;
+  border: 2px solid #15100c; border-radius: 999px;
+  font-size: 12px; font-weight: 800; text-align: center; color: #fff;
 }
+.corner-btn .item-count { background: var(--accent); }
+.corner-btn .exp-count { background: #6fae5a; color: #122; }
+
+/* コマンドの効果プレビュー行 */
+.cmd-hint { min-height: 18px; margin-top: 8px; font-size: 12px; color: var(--accent2); font-weight: 700; text-align: center; }
+
+/* 能力アップ画面 */
+.alloc-list { display: flex; flex-direction: column; gap: 8px; }
+.alloc-row { display: flex; align-items: center; gap: 8px; background: var(--panel-light); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+.ar-name { flex: 1; font-size: 14px; }
+.ar-grade { width: 24px; text-align: center; font-weight: 900; font-size: 16px; }
+.ar-val { width: 30px; text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; }
+.ar-cost { width: 48px; text-align: right; font-size: 11px; color: var(--ink-dim); }
+.ar-btns { display: flex; gap: 6px; }
+.alloc-up { padding: 6px 10px; font-size: 13px; }
+.alloc-up:disabled { opacity: .4; }
+
+/* ===== マネージャー営業（采配・配置型） ===== */
+#cooking-mgr .top-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+.mgr-tables { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 6px; }
+.mgr-table {
+  background: var(--panel-light); border: 2px solid var(--line); border-radius: 12px;
+  padding: 10px 8px; min-height: 110px; cursor: pointer; text-align: center;
+  display: flex; flex-direction: column; gap: 6px; justify-content: center;
+}
+.mgr-table.on { border-color: var(--accent2); }
+.mgr-table.mei { border-color: #e8b84b; box-shadow: 0 0 0 2px rgba(232,184,75,.4) inset; }
+.mgr-table.warn { border-color: var(--accent2); }
+.mgr-table.danger { border-color: var(--accent); animation: pulse-border .6s infinite alternate; }
+@keyframes pulse-border { from { box-shadow: 0 0 0 0 rgba(217,79,61,.4); } to { box-shadow: 0 0 0 4px rgba(217,79,61,.25); } }
+.mgr-table .mt-empty { color: var(--ink-dim); font-size: 13px; padding: 20px 0; }
+.mgr-table .mt-top { font-size: 13px; font-weight: 700; }
+.mgr-table .mt-order { font-size: 12px; }
+.mgr-table .mt-assign { font-size: 12px; min-height: 16px; }
+.mgr-table .mt-prog, .mgr-table .mt-pat { height: 8px; border-radius: 4px; background: #15100c; overflow: hidden; border: 1px solid var(--line); }
+.mgr-table .mt-prog > i { display: block; height: 100%; background: linear-gradient(90deg, #5ab0d9, #6fae5a); }
+.mgr-table .mt-pat > i { display: block; height: 100%; background: var(--green); }
+.mgr-table.warn .mt-pat > i { background: var(--accent2); }
+.mgr-table.danger .mt-pat > i { background: var(--accent); }
+.mgr-staff { display: flex; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+.mgr-staff-chip {
+  display: flex; flex-direction: column; align-items: center; gap: 0;
+  background: var(--panel-light); border: 2px solid var(--line); border-radius: 10px;
+  padding: 6px 14px; font-size: 20px; min-width: 76px;
+}
+.mgr-staff-chip span { font-size: 12px; font-weight: 700; }
+.mgr-staff-chip small { font-size: 10px; color: var(--ink-dim); }
+.mgr-staff-chip.idle { border-color: #6fae5a; }
+.mgr-staff-chip.busy { opacity: .55; }
+.mgr-directives { display: flex; gap: 8px; }
+.mgr-directives .cmd { flex: 1; }
+.mgr-directives .cmd .cd[data-cd]:not([data-cd=""])::after { content: " (" attr(data-cd) "秒)"; color: var(--accent); }
 
 .modal { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.62); display: flex; align-items: center; justify-content: center; padding: 16px; }
 .modal[hidden] { display: none; }
@@ -563,4 +618,5 @@ button:disabled { opacity: .4; cursor: not-allowed; }
   .cmd-bar .cmd { flex: 1 1 28%; min-width: 0; padding: 8px 4px 6px; }
   .cmd-bar .cmd .ci { width: 40px; height: 40px; line-height: 40px; font-size: 21px; }
   .cmd-bar .cmd .ct { font-size: 12px; }
+  .mgr-tables { grid-template-columns: repeat(2, 1fr); }
 }

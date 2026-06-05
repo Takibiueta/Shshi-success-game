@@ -16,9 +16,9 @@
     <div class="panel" style="max-width:520px;margin:0 auto;">
       <p class="muted" style="text-align:left;">
         パワプロのサクセス風・お寿司屋さん育成ゲーム。<br>
-        4つのポジションから一つを選び、12週間の修行でステータスを育成。
-        定期的にやってくる<b style="color:var(--accent2)">営業日</b>では、
-        制限時間内にお客さんの注文を捌くアクションに挑戦！<br>
+        4つのポジションから一つを選び、20週間の修行で経験点を稼ぎ、能力に振り分けて育成。
+        ポジションごとに<b style="color:var(--accent2)">専用イベント</b>や
+        <b style="color:var(--accent2)">営業の中身</b>が変化（マネージャーは采配ゲーム）！<br>
         店の評価を高めて、ミシュランの星を勝ち取ろう。
       </p>
       <div class="center mt">
@@ -120,8 +120,13 @@
       <!-- 演出レイヤー（キラキラ等） -->
       <div class="fx-layer" id="fx-layer"></div>
 
-      <!-- アイテムボタン（左下） -->
-      <button class="item-btn" id="btn-items">
+      <!-- 左下：能力アップ＆アイテム（自由操作・週は進まない） -->
+      <button class="corner-btn alloc-btn" id="btn-alloc">
+        <span class="ib-icon">⬆️</span>
+        <span class="ib-label">能力アップ</span>
+        <span class="exp-count" id="exp-count">0</span>
+      </button>
+      <button class="corner-btn item-btn" id="btn-items">
         <span class="ib-icon">🎒</span>
         <span class="ib-label">アイテム</span>
         <span class="item-count" id="item-count">0</span>
@@ -180,6 +185,7 @@
 
     <!-- 下部コマンドバー -->
     <div class="cmd-bar" id="cmd-grid"></div>
+    <div class="cmd-hint" id="cmd-hint"></div>
 
     <!-- ログ（折りたたみ） -->
     <details class="pawa-log">
@@ -187,6 +193,18 @@
       <div id="log"></div>
     </details>
   </section>
+
+  <!-- ===== 能力アップ（モーダル） ===== -->
+  <div class="modal" id="alloc-modal" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <h2>⬆️ 能力アップ</h2>
+        <button class="modal-close" id="btn-alloc-close">✕</button>
+      </div>
+      <p class="muted" style="margin-bottom:10px;">経験点 <b id="alloc-exp" style="color:var(--accent2)">0</b> を能力に振り分ける（得意★は割引・週は進まない）。</p>
+      <div id="alloc-list" class="alloc-list"></div>
+    </div>
+  </div>
 
   <!-- ===== アイテム（モーダル） ===== -->
   <div class="modal" id="item-modal" hidden>
@@ -254,6 +272,40 @@
     </div>
   </section>
 
+  <!-- ===== 営業（マネージャー・采配配置型） ===== -->
+  <section id="cooking-mgr" class="screen">
+    <div class="panel">
+      <div class="top-bar">
+        <div>
+          <div style="font-weight:800;" id="mgr-stage-name"></div>
+          <div class="muted" id="mgr-served"></div>
+        </div>
+        <div class="timer-wrap">
+          <div class="row" style="margin-bottom:4px;">
+            <span class="muted">残り <b id="mgr-time">0</b> 秒</span>
+            <span id="mgr-msg" style="font-weight:700;font-size:13px;"></span>
+          </div>
+          <div class="timer-bar"><i id="mgr-timer-fill" style="width:100%"></i></div>
+        </div>
+        <div class="score-box"><span id="mgr-score">0</span></div>
+      </div>
+
+      <div class="station-title">🪑 テーブル（タップして手の空いたスタッフを割り当て／満席を回そう）</div>
+      <div id="mgr-tables" class="mgr-tables"></div>
+
+      <div class="station-title">👥 スタッフ（緑＝待機 / 灰＝対応中）</div>
+      <div id="mgr-staff" class="mgr-staff"></div>
+
+      <div class="station-title">📣 采配（クールダウンあり）</div>
+      <div class="mgr-directives">
+        <button class="cmd" id="mgr-rush" data-kind="speed"><span class="ci">⚡</span><span class="ct">急がせる</span><span class="cd">全体を加速（満足やや低下）</span></button>
+        <button class="cmd" id="mgr-care" data-kind="hospitality"><span class="ci">🙇</span><span class="ct">丁寧に</span><span class="cd">客の我慢を回復</span></button>
+        <button class="cmd" id="mgr-cheer" data-kind="creativity"><span class="ci">📣</span><span class="ct">檄を飛ばす</span><span class="cd">数秒、全体大ブースト</span></button>
+      </div>
+      <div class="muted" id="mgr-hint" style="margin-top:10px;"></div>
+    </div>
+  </section>
+
   <!-- ===== 営業結果 ===== -->
   <section id="service-result" class="screen">
     <div class="panel" style="max-width:520px;margin:5vh auto 0;">
@@ -277,9 +329,10 @@
 </div>
 
 <script src="https://unpkg.com/three@0.150.1/build/three.min.js"></script>
-<script src="js/data.js?v=8"></script>
-<script src="js/chara.js?v=8"></script>
-<script src="js/cooking.js?v=8"></script>
-<script src="js/game.js?v=8"></script>
+<script src="js/data.js?v=11"></script>
+<script src="js/chara.js?v=11"></script>
+<script src="js/cooking.js?v=11"></script>
+<script src="js/manager.js?v=11"></script>
+<script src="js/game.js?v=11"></script>
 </body>
 </html>

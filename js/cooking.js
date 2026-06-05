@@ -45,23 +45,42 @@ const Cooking = (() => {
   let flashMap = {};
   let resizeFn = null;
 
+  // ポジション別の営業モード（出る品・ペース・特性が変わる）
+  const MODES = {
+    shokunin: { cats: ["sushi"], time: 1.0, cust: 1.0, interval: 1.0,
+      note: "寿司中心。技術で“早業”・創作で高得点" },
+    kitchen:  { cats: ["sushi", "kitchen"], time: 1.1, cust: 1.15, interval: 0.85,
+      note: "汁物・揚げ物も。手数とスピードで稼ぐ" },
+    floor:    { cats: ["sushi", "kitchen"], time: 1.0, cust: 1.25, interval: 0.8,
+      note: "客が多い！接客で我慢＆チップが大きく伸びる" },
+  };
+
   /* ---------- 開始 ---------- */
   function start(stage, player, onFinish) {
     const pos = POSITIONS[player.position];
     const b = pos.bonus || {};
+    const mode = MODES[player.position] || MODES.shokunin;
+    const s = player.stats;
 
-    const timeLimit = stage.time + Math.floor(player.stats.speed * 0.25) + (b.timeBonus || 0);
-    const patienceMult = (1 + player.stats.hospitality / 200) * (b.patience || 1);
-    const tipMult = (b.tip || 1) * (1 + player.stats.hospitality / 150);
-    const techMissResist = player.stats.tech;
-    const scoreMult = (1 + player.stats.creativity / 120) * (b.scoreMult || 1);
-    const moveSpeed = 4.2 + player.stats.speed * 0.045;   // スピードで移動が速くなる
-    const pool = RECIPES.filter(r => r.req <= player.stats.knowledge);
+    // 全ステータスが効く
+    const timeLimit = Math.round((stage.time + s.speed * 0.25 + s.tech * 0.15 + (b.timeBonus || 0)) * mode.time);
+    const patienceMult = (1 + s.hospitality / 160) * (b.patience || 1);
+    const tipMult = (b.tip || 1) * (1 + s.hospitality / 130);
+    const techMissResist = s.tech;
+    const techAutoStep = Math.min(0.5, s.tech / 260);     // 技術：たまに次の工程を自動でこなす“早業”
+    const knowScore = 1 + s.knowledge / 400;              // 知識：目利きで少し高得点
+    const hirameki = Math.min(0.35, s.creativity / 320);  // 創作：ひらめきで“神握り”二倍点
+    const scoreMult = (1 + s.creativity / 120) * (b.scoreMult || 1) * knowScore;
+    const moveSpeed = 4.2 + s.speed * 0.045;
+    const customers = Math.max(4, Math.round(stage.customers * mode.cust));
+    const interval = stage.interval * mode.interval;
+    let pool = RECIPES.filter(r => r.req <= s.knowledge && mode.cats.includes(r.cat));
+    if (pool.length === 0) pool = RECIPES.filter(r => r.req <= s.knowledge); // 念のため
 
     state = {
-      stage, player, pos, onFinish,
-      timeLimit, timeLeft: timeLimit,
-      patienceMult, tipMult, techMissResist, scoreMult, moveSpeed, pool,
+      stage, player, pos, onFinish, mode,
+      timeLimit, timeLeft: timeLimit, customers, interval,
+      patienceMult, tipMult, techMissResist, techAutoStep, hirameki, scoreMult, moveSpeed, pool,
       score: 0, served: 0, lost: 0, mistakes: 0, combo: 0, maxCombo: 0,
       orders: [],
       hasPlate: false,
@@ -89,7 +108,8 @@ const Cooking = (() => {
 
     buildScene();
     bindInput();
-    document.getElementById("svc-stage-name").textContent = stage.name;
+    document.getElementById("svc-stage-name").textContent = `${stage.name}（${pos.name}）`;
+    flashMsg(mode.note);
     lastTs = 0;
     rafId = requestAnimationFrame(loop);
     render();
@@ -416,9 +436,9 @@ const Cooking = (() => {
 
     // 客の出現
     state.spawnTimer -= dt;
-    if (state.spawnTimer <= 0 && state.spawnedCount < state.stage.customers) {
+    if (state.spawnTimer <= 0 && state.spawnedCount < state.customers) {
       spawnOrder();
-      state.spawnTimer = state.stage.interval * (0.8 + Math.random() * 0.4);
+      state.spawnTimer = state.interval * (0.8 + Math.random() * 0.4);
     }
 
     // 我慢ゲージ
@@ -445,7 +465,7 @@ const Cooking = (() => {
     state.pops = state.pops.filter(p => p.life > 0);
 
     // 終了判定
-    if (state.timeLeft <= 0 && state.spawnedCount >= state.stage.customers) {
+    if (state.timeLeft <= 0 && state.spawnedCount >= state.customers) {
       if (state.orders.length === 0 || state.timeLeft <= -5) { finish(); return; }
     }
     if (state.timeLeft <= -8) { finish(); return; }
@@ -505,8 +525,23 @@ const Cooking = (() => {
     if (!state.hasPlate) { flashMsg("先にお皿を取ろう！", true); return; }
     state.tray.push(id);
     markStation(id);
-    updatePlateLabel();
     addPop(s.x, 2.0, s.z, `+${ACTIONS[id].icon}`, "#6fae5a");
+    // 技術：早業（次の工程を自動でこなすことがある）
+    if (Math.random() < state.techAutoStep) {
+      const trayKey = state.tray.join(",");
+      const cand = state.orders.find(o => {
+        const ns = o.recipe.steps.slice(0, -1);
+        return ns.length > state.tray.length && ns.slice(0, state.tray.length).join(",") === trayKey;
+      });
+      if (cand) {
+        const next = cand.recipe.steps[state.tray.length];
+        if (next && next !== "serve") {
+          state.tray.push(next);
+          addPop(state.x, 2.5, state.z, "⚡早業！", "#ffd24a");
+        }
+      }
+    }
+    updatePlateLabel();
     renderOrders();
   }
 
@@ -541,6 +576,9 @@ const Cooking = (() => {
     let gained = o.recipe.score * state.scoreMult * (0.7 + speedRatio * 0.5) * comboBonus;
     const tip = (speedRatio > 0.5 ? 1 : 0) * 20 * state.tipMult;
     gained = Math.round(gained + tip);
+    // 創作：ひらめきで“神握り”二倍点
+    let hira = false;
+    if (Math.random() < state.hirameki) { gained *= 2; hira = true; }
 
     state.score += gained;
     state.served++;
@@ -549,8 +587,9 @@ const Cooking = (() => {
 
     state.orders = state.orders.filter(x => x.id !== o.id);
     const star = speedRatio > 0.6 ? "✨" : "";
-    addPop(state.x, 2.8, state.z, `+${gained}`, "#e8b84b");
-    log(`🍣 提供！「${o.recipe.name}」 +${gained}点 ${star}${state.combo > 1 ? ` (${state.combo}コンボ)` : ""}`, "good");
+    addPop(state.x, 2.8, state.z, hira ? `✨神握り +${gained}` : `+${gained}`, "#e8b84b");
+    if (hira) log(`✨ ひらめき！「${o.recipe.name}」が神握りに！ +${gained}点`, "good");
+    else log(`🍣 提供！「${o.recipe.name}」 +${gained}点 ${star}${state.combo > 1 ? ` (${state.combo}コンボ)` : ""}`, "good");
   }
 
   /* ---------- 終了 ---------- */

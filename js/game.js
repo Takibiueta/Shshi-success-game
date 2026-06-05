@@ -4,7 +4,7 @@
  * ========================================================================= */
 
 const Game = (() => {
-  const TOTAL_WEEKS = 12;
+  const TOTAL_WEEKS = 20;
 
   let player = null;        // 育成中のプレイヤー
   let logLines = [];
@@ -71,6 +71,7 @@ const Game = (() => {
       name: "あなた",
       week: 1,
       stats: Object.assign({ stamina: 100, maxStamina: 100 }, p.base),
+      exp: 0,               // 経験点（能力アップで振り分け）
       storeScore: 0,        // 営業の累積（店の評価に直結）
       serviceCount: 0,
       items: { energy: 1, recipe: 1 },   // 初期アイテム
@@ -129,7 +130,7 @@ const Game = (() => {
     // 週の進行で 朝→昼→夕→夜 に変化
     const tods = ["tod-morning", "tod-day", "tod-evening", "tod-night"];
     scene.classList.remove(...tods);
-    const phase = Math.min(3, Math.floor((player.week - 1) / 3)); // 1-3:朝 4-6:昼 7-9:夕 10-12:夜
+    const phase = Math.min(3, Math.floor((player.week - 1) / 5)); // 全20週を4分割（朝→昼→夕→夜）
     scene.classList.add(tods[phase]);
     // 営業日が近い（当日 or 直前週）と行列＆点灯
     const near = SERVICE_STAGES.some(s => s.day === player.week || s.day === player.week + 1);
@@ -207,15 +208,73 @@ const Game = (() => {
     layer.appendChild(el);
     setTimeout(() => el.remove(), 1200);
   }
-  function previewStat(k, gain) {
-    const row = document.querySelector(`.sc-stat[data-stat="${k}"]`);
-    if (row) row.classList.add("preview");
-    const p = document.getElementById("prev-" + k);
-    if (p) p.textContent = `+${gain.min}〜${gain.max}`;
+  function previewCmd(text) {
+    const h = document.getElementById("cmd-hint");
+    if (h) h.textContent = text;
   }
   function clearPreview() {
-    document.querySelectorAll(".sc-stat.preview").forEach(r => r.classList.remove("preview"));
-    document.querySelectorAll(".ss-preview").forEach(p => p.textContent = "");
+    const h = document.getElementById("cmd-hint");
+    if (h) h.textContent = "";
+  }
+
+  /* ---------- 経験点・能力アップ（パワプロ式の振り分け） ---------- */
+  function gainExp(n) { player.exp = (player.exp || 0) + n; }
+
+  function allocCostFor(k, v) {
+    const p = POSITIONS[player.position];
+    let c = allocCostAt(v);
+    if (k === p.main) c = Math.max(1, Math.round(c * 0.7)); // 得意能力は割引
+    return c;
+  }
+  function openAlloc() { renderAlloc(); document.getElementById("alloc-modal").hidden = false; }
+  function closeAlloc() { document.getElementById("alloc-modal").hidden = true; }
+  function renderAlloc() {
+    document.getElementById("alloc-exp").textContent = player.exp;
+    const p = POSITIONS[player.position];
+    const list = document.getElementById("alloc-list");
+    list.innerHTML = "";
+    for (const k of TRAINABLE) {
+      const s = STATS[k], v = player.stats[k], g = gradeLetter(v);
+      const isMain = k === p.main;
+      const maxed = v >= 100;
+      const cost1 = allocCostFor(k, v);
+      const el = document.createElement("div");
+      el.className = "alloc-row";
+      el.innerHTML = `
+        <span class="ar-name">${s.icon}${s.name}${isMain ? "★" : ""}</span>
+        <span class="ar-grade g-${g}">${g}</span>
+        <span class="ar-val">${v}</span>
+        <span class="ar-cost">${maxed ? "MAX" : cost1 + "pt"}</span>`;
+      const btns = document.createElement("span");
+      btns.className = "ar-btns";
+      const mk = (label, amount) => {
+        const b = document.createElement("button");
+        b.className = "btn alloc-up";
+        b.textContent = label;
+        b.disabled = maxed || player.exp < cost1;
+        b.onclick = () => allocStat(k, amount);
+        return b;
+      };
+      btns.appendChild(mk("+1", 1));
+      btns.appendChild(mk("+5", 5));
+      el.appendChild(btns);
+      list.appendChild(el);
+    }
+  }
+  function allocStat(k, amount) {
+    let raised = 0, spent = 0;
+    for (let i = 0; i < amount; i++) {
+      const v = player.stats[k];
+      if (v >= 100) break;
+      const c = allocCostFor(k, v);
+      if (player.exp < c) break;
+      player.exp -= c; player.stats[k] = v + 1; raised++; spent += c;
+    }
+    if (raised > 0) {
+      log(`⬆️ ${STATS[k].name} を +${raised}（経験点-${spent}）`, "good");
+      renderSuccess();
+      renderAlloc();
+    }
   }
 
   function renderSuccess() {
@@ -246,7 +305,6 @@ const Game = (() => {
       sw.innerHTML += `
         <div class="sc-stat" data-stat="${k}">
           <span class="ss-name">${s.icon}${s.name}</span>
-          <span class="ss-preview" id="prev-${k}"></span>
           <span class="ss-grade g-${g}">${g}</span>
           <span class="ss-val">${v}</span>
         </div>`;
@@ -254,9 +312,11 @@ const Game = (() => {
 
     // 背景の時間帯＆営業日が近いと行列
     updateScene();
-    // アイテム数バッジ
+    // アイテム数・経験点バッジ
     const ic = document.getElementById("item-count");
     if (ic) ic.textContent = itemTotal();
+    const ec = document.getElementById("exp-count");
+    if (ec) ec.textContent = player.exp;
 
     // 次の営業日告知
     const nextStage = SERVICE_STAGES.find(s => s.day >= player.week);
@@ -298,23 +358,26 @@ const Game = (() => {
       return;
     }
 
-    // 通常週：練習コマンド
+    // 通常週：訓練コマンド（経験点を稼ぐ）
     const p = POSITIONS[player.position];
-    for (const k of TRAINABLE) {
-      const s = STATS[k];
-      const isMain = k === p.main;
-      const gain = trainGain(k);
-      const cost = 28;
+    const mainStat = STATS[p.main];
+    const specialty = {
+      id: "specialty", icon: mainStat.icon, name: `${mainStat.name}修練★`,
+      exp: [16, 22], cost: 20, kindColor: p.main,
+      note: `得意の${mainStat.name}を磨く。経験点+16〜22 / 体力-20`,
+    };
+    const list = TRAININGS.concat([specialty]);
+    for (const t of list) {
       const el = document.createElement("button");
       el.className = "cmd";
-      el.dataset.kind = k;
-      el.disabled = player.stats.stamina < cost;
+      el.dataset.kind = t.kindColor || t.id;
+      el.disabled = player.stats.stamina < t.cost;
       el.innerHTML = `
-        <span class="ci">${s.icon}</span>
-        <span class="ct">${s.name}${isMain ? "★" : ""}</span>
-        <span class="cd">+${gain.min}〜${gain.max} / 体力-${cost}</span>`;
-      el.onclick = () => doTrain(k, cost);
-      el.onpointerenter = () => previewStat(k, gain);
+        <span class="ci">${t.icon}</span>
+        <span class="ct">${t.name}</span>
+        <span class="cd">経験点+${t.exp[0]}〜${t.exp[1]} / 体力-${t.cost}</span>`;
+      el.onclick = () => doTrain(t);
+      el.onpointerenter = () => previewCmd(`${t.icon}${t.name}：${t.note || "経験点を稼ぐ"}`);
       el.onpointerleave = () => clearPreview();
       grid.appendChild(el);
     }
@@ -324,51 +387,44 @@ const Game = (() => {
     rest.dataset.kind = "rest";
     rest.innerHTML = `<span class="ci">😴</span><span class="ct">休養</span><span class="cd">体力+45 回復</span>`;
     rest.onclick = () => doRest();
+    rest.onpointerenter = () => previewCmd("😴休養：体力を+45回復する（経験点は入らない）");
+    rest.onpointerleave = () => clearPreview();
     grid.appendChild(rest);
 
-    // 食べ歩き（知識寄りのバランス）
+    // 食べ歩き（経験点少＋アイテム発見チャンス）
     const study = document.createElement("button");
     study.className = "cmd";
     study.dataset.kind = "study";
-    study.disabled = player.stats.stamina < 15;
-    study.innerHTML = `<span class="ci">🍱</span><span class="ct">食べ歩き</span><span class="cd">知識+少 / 体力-15</span>`;
+    study.disabled = player.stats.stamina < 12;
+    study.innerHTML = `<span class="ci">🍱</span><span class="ct">食べ歩き</span><span class="cd">経験点+少 / 体力-12</span>`;
     study.onclick = () => doStudy();
+    study.onpointerenter = () => previewCmd("🍱食べ歩き：経験点+6〜12。たまにアイテムを発見（体力-12）");
+    study.onpointerleave = () => clearPreview();
     grid.appendChild(study);
   }
 
-  function trainGain(k) {
-    const p = POSITIONS[player.position];
-    const isMain = k === p.main;
-    const base = isMain ? 9 : 6;
-    return { min: base, max: base + 6 };
-  }
-
   function rand(min, max) {
-    // Date/Math.random はメインプロセスでは利用可（ワークフロー制約は無関係）
     return min + Math.floor(Math.random() * (max - min + 1));
   }
 
-  function doTrain(k, cost) {
-    if (player.stats.stamina < cost) return;
-    player.stats.stamina -= cost;
-    const g = trainGain(k);
-    let gain = rand(g.min, g.max);
-    // 体力が低いと効率ダウン or 軽い失敗
+  function doTrain(t) {
+    if (player.stats.stamina < t.cost) return;
+    player.stats.stamina -= t.cost;
+    let gain = rand(t.exp[0], t.exp[1]);
     let failed = false;
-    if (player.stats.stamina < 20 && Math.random() < 0.35) {
+    // 猛特訓は疲労時に失敗しやすい
+    if (t.risk && player.stats.stamina < 22 && Math.random() < 0.4) {
       failed = true;
-      gain = Math.max(1, Math.floor(gain * 0.3));
+      gain = Math.max(2, Math.floor(gain * 0.35));
     }
-    player.stats[k] = Math.min(100, player.stats[k] + gain);
-    const s = STATS[k];
-    if (failed) { log(`😣 疲労で練習に身が入らず…「${s.name}」+${gain}`, "bad"); pendingReact = { type: "train_fail" }; }
-    else { log(`💪 ${s.name}の練習！ +${gain}`, "good"); pendingReact = { type: "train_good", ctx: { stat: s.name } }; }
+    gainExp(gain);
+    if (failed) { log(`😣 疲労で身が入らず…経験点+${gain}`, "bad"); pendingReact = { type: "train_fail" }; }
+    else { log(`${t.icon} ${t.name}！ 経験点+${gain}`, "good"); pendingReact = { type: "train_good", ctx: { stat: "経験点" } }; }
     clearPreview();
     advanceWeek();
-    // 成功時はキラキラ＋獲得表示（育成画面のままなら見える）
     if (!failed && document.getElementById("success").classList.contains("active")) {
       fxSparkle();
-      fxGain(`${s.icon}${s.name} +${gain}`);
+      fxGain(`経験点 +${gain}`);
     }
   }
 
@@ -380,14 +436,18 @@ const Game = (() => {
   }
 
   function doStudy() {
-    if (player.stats.stamina < 15) return;
-    player.stats.stamina -= 15;
-    const g = rand(3, 7);
-    player.stats.knowledge = Math.min(100, player.stats.knowledge + g);
-    const extra = TRAINABLE[rand(0, TRAINABLE.length - 1)];
-    const e2 = rand(1, 3);
-    player.stats[extra] = Math.min(100, player.stats[extra] + e2);
-    log(`🍱 食べ歩きで見聞を広めた。知識+${g} ${STATS[extra].name}+${e2}`, "good");
+    if (player.stats.stamina < 12) return;
+    player.stats.stamina -= 12;
+    const g = rand(6, 12);
+    gainExp(g);
+    let extra = "";
+    if (Math.random() < 0.3) {
+      const ids = Object.keys(ITEMS);
+      const id = ids[rand(0, ids.length - 1)];
+      addItem(id);
+      extra = ` ${ITEMS[id].icon}${ITEMS[id].name}を見つけた！`;
+    }
+    log(`🍱 食べ歩きで見聞を広めた。経験点+${g}${extra}`, "good");
     pendingReact = { type: "study" };
     advanceWeek();
   }
@@ -399,10 +459,11 @@ const Game = (() => {
       finishGame();
       return;
     }
-    // 営業日でなければ一定確率でイベント
+    // 営業日でなければ一定確率でイベント（共通＋ポジション専用）
     const isServiceDay = SERVICE_STAGES.some(s => s.day === player.week);
-    if (!isServiceDay && Math.random() < 0.45) {
-      const ev = EVENTS[rand(0, EVENTS.length - 1)];
+    if (!isServiceDay && Math.random() < 0.5) {
+      const pool = EVENTS.filter(e => !e.pos || e.pos === player.position);
+      const ev = pool[rand(0, pool.length - 1)];
       showEvent(ev);
     } else {
       renderSuccess();
@@ -434,7 +495,8 @@ const Game = (() => {
   }
 
   function resolveEvent(choice) {
-    applyEffects(choice.effects);
+    if (choice.effects) applyEffects(choice.effects);
+    if (choice.exp) gainExp(choice.exp);
     if (choice.item) addItem(choice.item);
     log(`📖 ${choice.msg}`, "good");
     pendingReact = { type: "event_done", ctx: { msg: choice.msg } };
@@ -444,9 +506,14 @@ const Game = (() => {
 
   /* ---------- 営業（試合）へ ---------- */
   function startService(stage) {
-    show("cooking");
-    document.getElementById("svc-msg").textContent = "";
-    Cooking.start(stage, player, (result) => onServiceFinish(stage, result));
+    if (player.position === "manager" && typeof ManagerService !== "undefined") {
+      show("cooking-mgr");
+      ManagerService.start(stage, player, (result) => onServiceFinish(stage, result));
+    } else {
+      show("cooking");
+      document.getElementById("svc-msg").textContent = "";
+      Cooking.start(stage, player, (result) => onServiceFinish(stage, result));
+    }
   }
 
   function onServiceFinish(stage, result) {
@@ -524,6 +591,12 @@ const Game = (() => {
     if (itemClose) itemClose.onclick = closeItems;
     const itemModal = document.getElementById("item-modal");
     if (itemModal) itemModal.onclick = (e) => { if (e.target === itemModal) closeItems(); };
+    const allocBtn = document.getElementById("btn-alloc");
+    if (allocBtn) allocBtn.onclick = openAlloc;
+    const allocClose = document.getElementById("btn-alloc-close");
+    if (allocClose) allocClose.onclick = closeAlloc;
+    const allocModal = document.getElementById("alloc-modal");
+    if (allocModal) allocModal.onclick = (e) => { if (e.target === allocModal) closeAlloc(); };
     show("title");
   }
 

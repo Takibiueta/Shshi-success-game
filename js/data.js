@@ -82,25 +82,29 @@ const ACTIONS = {
   serve:  { id: "serve",  label: "提供",   icon: "✅" },
 };
 
+/* cat: メニュー分類。shokunin=寿司、kitchen=厨房（汁/揚げ）。ポジションで出る品が変わる */
 const RECIPES = [
-  { id: "maguro_nigiri", name: "マグロ握り",   icon: "🍣", steps: ["rice","maguro","serve"], score: 100, req: 0 },
-  { id: "salmon_nigiri", name: "サーモン握り", icon: "🍣", steps: ["rice","salmon","serve"], score: 100, req: 0 },
-  { id: "tamago",        name: "玉子",         icon: "🟨", steps: ["rice","tamago","serve"], score: 90,  req: 0 },
-  { id: "ebi_nigiri",    name: "えび握り",     icon: "🍣", steps: ["rice","ebi","serve"],    score: 110, req: 0 },
-  { id: "maguro_cut",    name: "中トロ（柵切り）", icon: "🍣", steps: ["cut","rice","maguro","serve"], score: 150, req: 15 },
-  { id: "ikura_gunkan",  name: "いくら軍艦",   icon: "🍙", steps: ["rice","nori","ikura","serve"], score: 160, req: 20 },
-  { id: "uni_gunkan",    name: "うに軍艦",     icon: "🍙", steps: ["rice","nori","uni","serve"], score: 180, req: 30 },
-  { id: "deluxe_maguro", name: "本マグロ特上", icon: "🌟", steps: ["cut","rice","wasabi","maguro","serve"], score: 220, req: 40 },
-  { id: "miso_soup",     name: "味噌汁",       icon: "🥣", steps: ["soup","serve"], score: 70, req: 0 },
-  { id: "ebi_fry",       name: "海老天",       icon: "🍤", steps: ["fry","ebi","serve"], score: 130, req: 25 },
-  { id: "deluxe_set",    name: "おまかせ握り", icon: "👑", steps: ["cut","rice","maguro","rice","salmon","serve"], score: 300, req: 50 },
+  { id: "maguro_nigiri", name: "マグロ握り",   icon: "🍣", cat: "sushi",   steps: ["rice","maguro","serve"], score: 100, req: 0 },
+  { id: "salmon_nigiri", name: "サーモン握り", icon: "🍣", cat: "sushi",   steps: ["rice","salmon","serve"], score: 100, req: 0 },
+  { id: "tamago",        name: "玉子",         icon: "🟨", cat: "sushi",   steps: ["rice","tamago","serve"], score: 90,  req: 0 },
+  { id: "ebi_nigiri",    name: "えび握り",     icon: "🍣", cat: "sushi",   steps: ["rice","ebi","serve"],    score: 110, req: 0 },
+  { id: "maguro_cut",    name: "中トロ（柵切り）", icon: "🍣", cat: "sushi", steps: ["cut","rice","maguro","serve"], score: 150, req: 15 },
+  { id: "ikura_gunkan",  name: "いくら軍艦",   icon: "🍙", cat: "sushi",   steps: ["rice","nori","ikura","serve"], score: 160, req: 20 },
+  { id: "uni_gunkan",    name: "うに軍艦",     icon: "🍙", cat: "sushi",   steps: ["rice","nori","uni","serve"], score: 180, req: 30 },
+  { id: "deluxe_maguro", name: "本マグロ特上", icon: "🌟", cat: "sushi",   steps: ["cut","rice","wasabi","maguro","serve"], score: 220, req: 40 },
+  { id: "miso_soup",     name: "味噌汁",       icon: "🥣", cat: "kitchen", steps: ["soup","serve"], score: 70, req: 0 },
+  { id: "tamago_yaki",   name: "出汁巻き玉子", icon: "🍳", cat: "kitchen", steps: ["fry","tamago","serve"], score: 110, req: 10 },
+  { id: "ebi_fry",       name: "海老天",       icon: "🍤", cat: "kitchen", steps: ["fry","ebi","serve"], score: 130, req: 25 },
+  { id: "soup_set",      name: "あら汁定食",   icon: "🍲", cat: "kitchen", steps: ["soup","rice","serve"], score: 140, req: 20 },
+  { id: "deluxe_set",    name: "おまかせ握り", icon: "👑", cat: "sushi",   steps: ["cut","rice","maguro","rice","salmon","serve"], score: 300, req: 50 },
 ];
 
-/* 営業日のステージ設定（章ごとに難しくなる） */
+/* 営業日のステージ設定（全20週・営業4回／5・10・15・20週目） */
 const SERVICE_STAGES = [
-  { day: 4,  name: "オープン初日",     time: 45, customers: 6,  interval: 4.0, patience: 16 },
-  { day: 8,  name: "週末ランチ",       time: 50, customers: 9,  interval: 3.2, patience: 14 },
-  { day: 12, name: "ミシュラン調査員来店", time: 60, customers: 12, interval: 2.6, patience: 13 },
+  { day: 5,  name: "オープン初日",       time: 45, customers: 6,  interval: 4.0, patience: 16 },
+  { day: 10, name: "週末ランチ",         time: 50, customers: 9,  interval: 3.4, patience: 14 },
+  { day: 15, name: "常連感謝デー",       time: 55, customers: 11, interval: 3.0, patience: 13 },
+  { day: 20, name: "ミシュラン調査員来店", time: 62, customers: 14, interval: 2.6, patience: 12 },
 ];
 
 /* アイテム ---------------------------------------------------------------
@@ -217,7 +221,102 @@ const EVENTS = [
       { label: "基礎を固める",       effects: { tech: 6, speed: 6 }, item: "whetstone", msg: "地に足つけて鍛錬。技術+6 スピード+6（砥石を入手）" },
     ],
   },
+
+  /* ===== ポジション専用イベント（pos が一致する職種だけ発生） ===== */
+  /* --- 寿司職人 --- */
+  {
+    id: "shok_oyakata", pos: "shokunin", chara: "oyakata", expr: "normal",
+    title: "大将直伝・握りの極意",
+    text: "「ええか、シャリは赤子を包むように握れ」。大将がつきっきりで教えてくれる。",
+    choices: [
+      { label: "とことん教わる", effects: { stamina: -12 }, exp: 34, msg: "握りの極意を会得！ 経験点+34（体力-12）" },
+      { label: "見て盗む",       exp: 18, msg: "目で盗んだ。経験点+18" },
+    ],
+  },
+  {
+    id: "shok_creative", pos: "shokunin", chara: "me", expr: "fired",
+    title: "創作寿司の構想",
+    text: "夜中、ふと新しい握りのアイデアが浮かんだ。試作してみるか？",
+    choices: [
+      { label: "朝まで試作する", effects: { stamina: -18 }, exp: 28, item: "charm", msg: "新作が完成！ 経験点+28（体力-18）お守り入手" },
+      { label: "メモして寝る",   effects: { stamina: 8 }, exp: 12, msg: "アイデアは温存。経験点+12 体力+8" },
+    ],
+  },
+  /* --- キッチン担当 --- */
+  {
+    id: "kit_rush", pos: "kitchen", chara: "me", expr: "tired",
+    title: "仕込みの山",
+    text: "明日の仕込みが大量に残っている。徹夜で片付けるか？",
+    choices: [
+      { label: "一気に片付ける", effects: { stamina: -20 }, exp: 32, msg: "猛スピードで完了！ 経験点+32（体力-20）" },
+      { label: "要点だけ手早く", effects: { stamina: -6 }, exp: 17, msg: "効率重視。経験点+17（体力-6）" },
+    ],
+  },
+  {
+    id: "kit_fry", pos: "kitchen", chara: "oyakata", expr: "happy",
+    title: "揚げ場の極意",
+    text: "大将が天ぷらの揚げ加減を伝授してくれるという。",
+    choices: [
+      { label: "火加減を体で覚える", effects: { stamina: -10 }, exp: 30, item: "whetstone", msg: "揚げの達人へ！ 経験点+30（体力-10）砥石入手" },
+      { label: "レシピで覚える",     exp: 17, msg: "理屈で理解。経験点+17" },
+    ],
+  },
+  /* --- フロアスタッフ --- */
+  {
+    id: "flo_regular", pos: "floor", chara: "me", expr: "happy",
+    title: "常連さんとの会話",
+    text: "常連の旦那衆が「姉ちゃん、話聞いてよ」と上機嫌だ。",
+    choices: [
+      { label: "笑顔で聞き役に",       effects: { stamina: -6 }, exp: 28, msg: "場が和んだ！ 経験点+28（体力-6）" },
+      { label: "さりげなく注文を促す", exp: 17, item: "tea", msg: "商売上手。経験点+17 高級茶葉入手" },
+    ],
+  },
+  {
+    id: "flo_complaint", pos: "floor", chara: "oyakata", expr: "worried",
+    title: "クレーム対応",
+    text: "提供が遅いとお客さんがご立腹。どう収める？",
+    choices: [
+      { label: "誠心誠意あやまる", effects: { stamina: -8 }, exp: 26, msg: "丁寧な対応で納得してもらえた。経験点+26（体力-8）" },
+      { label: "一品サービスする", effects: { stamina: -2 }, exp: 15, msg: "機転で解決。経験点+15" },
+    ],
+  },
+  /* --- マネージャー --- */
+  {
+    id: "mgr_books", pos: "manager", chara: "me", expr: "normal",
+    title: "帳簿とにらめっこ",
+    text: "今月の売上と原価を見直す。改善点が見えてきた。",
+    choices: [
+      { label: "徹底的に分析する", effects: { stamina: -10 }, exp: 32, msg: "経営感覚が磨かれた！ 経験点+32（体力-10）" },
+      { label: "要点だけ確認",     exp: 17, msg: "効率よく把握。経験点+17" },
+    ],
+  },
+  {
+    id: "mgr_staff", pos: "manager", chara: "oyakata", expr: "normal",
+    title: "スタッフ面談",
+    text: "若いスタッフが何か悩んでいるようだ。話を聞くか？",
+    choices: [
+      { label: "じっくり向き合う", effects: { stamina: -6 }, exp: 28, item: "charm", msg: "信頼が深まった。経験点+28（体力-6）お守り入手" },
+      { label: "励まして送り出す", exp: 16, msg: "前向きに送り出した。経験点+16" },
+    ],
+  },
 ];
+
+/* 訓練コマンド（経験点を稼ぐ）。得意稽古はポジションで内容が変わる。 */
+const TRAININGS = [
+  { id: "hard",   icon: "🔥", name: "猛特訓",   exp: [18, 26], cost: 32, risk: true,  note: "経験点 大／体力 大・疲労注意" },
+  { id: "normal", icon: "💪", name: "通常稽古", exp: [10, 15], cost: 22, note: "経験点 中／体力 中" },
+  { id: "light",  icon: "🍵", name: "軽い稽古", exp: [5, 8],   cost: 8,  note: "経験点 小／体力 小" },
+];
+
+/* 能力アップ：現在値に応じた「+1あたりの経験点コスト」 */
+function allocCostAt(v) {
+  if (v >= 90) return 12;
+  if (v >= 80) return 8;
+  if (v >= 70) return 5;
+  if (v >= 60) return 3;
+  if (v >= 40) return 2;
+  return 1;
+}
 
 /* ミシュラン評価のしきい値（総合スコアから判定） ------------------------- */
 const MICHELIN = [
