@@ -48,11 +48,11 @@ const Cooking = (() => {
   // ポジション別の営業モード（出る品・ペース・特性が変わる）
   const MODES = {
     shokunin: { cats: ["sushi"], time: 1.0, cust: 1.0, interval: 1.0,
-      note: "寿司中心。技術で“早業”・創作で高得点" },
+      note: "寿司中心。作業力で“早業”・判断力で高級メニュー" },
     kitchen:  { cats: ["sushi", "kitchen"], time: 1.1, cust: 1.15, interval: 0.85,
-      note: "汁物・揚げ物も。手数とスピードで稼ぐ" },
+      note: "汁物・揚げ物も。作業力とタフさで手数を稼ぐ" },
     floor:    { cats: ["sushi", "kitchen"], time: 1.0, cust: 1.25, interval: 0.8,
-      note: "客が多い！接客で我慢＆チップが大きく伸びる" },
+      note: "客が多い！接客力で我慢＆チップが大きく伸びる" },
   };
 
   /* ---------- 開始 ---------- */

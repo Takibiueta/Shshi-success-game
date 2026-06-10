@@ -71,7 +71,9 @@ const Game = (() => {
       name: "あなた",
       week: 1,
       stats: Object.assign({ stamina: 100, maxStamina: 100 }, p.base),
-      exp: 0,               // 経験点（能力アップで振り分け）
+      exp: 0,                                   // 経験点（能力アップで振り分け）
+      meters: Object.assign({}, BALANCE.startMeters), // ストレス / やる気
+      evals: Object.assign({}, BALANCE.startEvals),   // 大将 / 同僚 / 客 評価
       storeScore: 0,        // 営業の累積（店の評価に直結）
       serviceCount: 0,
       items: { energy: 1, recipe: 1 },   // 初期アイテム
@@ -108,19 +110,10 @@ const Game = (() => {
     return tier;
   }
 
-  function clamp100(v) { return Math.max(0, Math.min(100, v)); }
-
-  // 効果（イベント / アイテム共通）を適用
+  // 効果（コマンド / イベント / アイテム共通）を適用し、サマリ文字列を返す
+  // 実体は logic/effects.js（メンタル軽減・コミュ増幅・やる気倍率もそこで処理）
   function applyEffects(eff) {
-    for (const [k, v] of Object.entries(eff)) {
-      if (k === "all") {
-        for (const t of TRAINABLE) player.stats[t] = clamp100(player.stats[t] + v);
-      } else if (k === "stamina") {
-        player.stats.stamina = Math.max(0, Math.min(player.stats.maxStamina, player.stats.stamina + v));
-      } else if (player.stats[k] != null) {
-        player.stats[k] = clamp100(player.stats[k] + v);
-      }
-    }
+    return Logic.applyEffects(player, eff);
   }
 
   /* ---------- 背景の時間帯・行列 ---------- */
@@ -218,12 +211,10 @@ const Game = (() => {
   }
 
   /* ---------- 経験点・能力アップ（パワプロ式の振り分け） ---------- */
-  function gainExp(n) { player.exp = (player.exp || 0) + n; }
-
   function allocCostFor(k, v) {
     const p = POSITIONS[player.position];
     let c = allocCostAt(v);
-    if (k === p.main) c = Math.max(1, Math.round(c * 0.7)); // 得意能力は割引
+    if (k === p.main) c = Math.max(1, Math.round(c * BALANCE.mainDiscount)); // 得意能力は割引
     return c;
   }
   function openAlloc() { renderAlloc(); document.getElementById("alloc-modal").hidden = false; }
@@ -309,6 +300,18 @@ const Game = (() => {
           <span class="ss-val">${v}</span>
         </div>`;
     }
+    // メーター＆評価（対立軸を常に見せる）
+    const m = player.meters, e = player.evals;
+    const stressCls = m.stress >= 80 ? "val-danger" : m.stress >= 50 ? "val-warn" : "";
+    const evalCls = v => v >= BALANCE.evalBands.high ? "val-good" : v <= BALANCE.evalBands.low ? "val-danger" : "";
+    sw.innerHTML += `
+      <div class="sc-divider"></div>
+      <div class="sc-stat"><span class="ss-name">${METERS.stress.icon}${METERS.stress.name}</span><span class="ss-val ${stressCls}">${m.stress}</span></div>
+      <div class="sc-stat"><span class="ss-name">${METERS.motivation.icon}${METERS.motivation.name}</span><span class="ss-val ${m.motivation <= 30 ? "val-warn" : ""}">${m.motivation}</span></div>
+      <div class="sc-divider"></div>
+      <div class="sc-stat"><span class="ss-name">${EVALS.boss.icon}${EVALS.boss.name}</span><span class="ss-val ${evalCls(e.boss)}">${e.boss}</span></div>
+      <div class="sc-stat"><span class="ss-name">${EVALS.coworker.icon}${EVALS.coworker.name}</span><span class="ss-val ${evalCls(e.coworker)}">${e.coworker}</span></div>
+      <div class="sc-stat"><span class="ss-name">${EVALS.customer.icon}${EVALS.customer.name}</span><span class="ss-val ${evalCls(e.customer)}">${e.customer}</span></div>`;
 
     // 背景の時間帯＆営業日が近いと行列
     updateScene();
@@ -337,6 +340,7 @@ const Game = (() => {
     let rtype, rctx = { position: player.position, target: "success" };
     if (stageToday) rtype = "service_day";
     else if (pendingReact) { rtype = pendingReact.type; Object.assign(rctx, pendingReact.ctx); }
+    else if (player.meters.stress >= BALANCE.stress.tiredThreshold) rtype = "stress_high";
     else if (player.stats.stamina < 25) rtype = "low_stamina";
     else rtype = "idle";
     pendingReact = null;
@@ -358,116 +362,93 @@ const Game = (() => {
       return;
     }
 
-    // 通常週：訓練コマンド（経験点を稼ぐ）
-    const p = POSITIONS[player.position];
-    const mainStat = STATS[p.main];
-    const specialty = {
-      id: "specialty", icon: mainStat.icon, name: `${mainStat.name}修練★`,
-      exp: [16, 22], cost: 20, kindColor: p.main,
-      note: `得意の${mainStat.name}を磨く。経験点+16〜22 / 体力-20`,
-    };
-    const list = TRAININGS.concat([specialty]);
-    for (const t of list) {
+    // 通常週：コマンド（data/commands.js から生成。各コマンドは得るものと失うものを持つ）
+    for (const cmd of COMMANDS) {
+      const cost = (cmd.cost && cmd.cost.stamina) || 0;
       const el = document.createElement("button");
-      el.className = "cmd";
-      el.dataset.kind = t.kindColor || t.id;
-      el.disabled = player.stats.stamina < t.cost;
+      el.className = "cmd" + (cmd.id === "rest" ? " rest" : "");
+      el.dataset.kind = cmd.kind;
+      el.disabled = player.stats.stamina < cost;
+      const costTxt = cost ? `体力-${cost}` : "体力消費なし";
       el.innerHTML = `
-        <span class="ci">${t.icon}</span>
-        <span class="ct">${t.name}</span>
-        <span class="cd">経験点+${t.exp[0]}〜${t.exp[1]} / 体力-${t.cost}</span>`;
-      el.onclick = () => doTrain(t);
-      el.onpointerenter = () => previewCmd(`${t.icon}${t.name}：${t.note || "経験点を稼ぐ"}`);
+        <span class="ci">${cmd.icon}</span>
+        <span class="ct">${cmd.name}</span>
+        <span class="cd">${costTxt}</span>`;
+      el.onclick = () => doCommand(cmd);
+      el.onpointerenter = () => {
+        let hint = `${cmd.icon}${cmd.name}：${cmd.note}`;
+        if (cmd.check) hint += `（今の成功率 ${Math.round(Logic.checkChance(player, cmd.check) * 100)}%）`;
+        previewCmd(hint);
+      };
       el.onpointerleave = () => clearPreview();
       grid.appendChild(el);
     }
-    // 休養
-    const rest = document.createElement("button");
-    rest.className = "cmd rest";
-    rest.dataset.kind = "rest";
-    rest.innerHTML = `<span class="ci">😴</span><span class="ct">休養</span><span class="cd">体力+45 回復</span>`;
-    rest.onclick = () => doRest();
-    rest.onpointerenter = () => previewCmd("😴休養：体力を+45回復する（経験点は入らない）");
-    rest.onpointerleave = () => clearPreview();
-    grid.appendChild(rest);
-
-    // 食べ歩き（経験点少＋アイテム発見チャンス）
-    const study = document.createElement("button");
-    study.className = "cmd";
-    study.dataset.kind = "study";
-    study.disabled = player.stats.stamina < 12;
-    study.innerHTML = `<span class="ci">🍱</span><span class="ct">食べ歩き</span><span class="cd">経験点+少 / 体力-12</span>`;
-    study.onclick = () => doStudy();
-    study.onpointerenter = () => previewCmd("🍱食べ歩き：経験点+6〜12。たまにアイテムを発見（体力-12）");
-    study.onpointerleave = () => clearPreview();
-    grid.appendChild(study);
   }
 
   function rand(min, max) {
     return min + Math.floor(Math.random() * (max - min + 1));
   }
 
-  function doTrain(t) {
-    if (player.stats.stamina < t.cost) return;
-    player.stats.stamina -= t.cost;
-    let gain = rand(t.exp[0], t.exp[1]);
-    let failed = false;
-    // 猛特訓は疲労時に失敗しやすい
-    if (t.risk && player.stats.stamina < 22 && Math.random() < 0.4) {
-      failed = true;
-      gain = Math.max(2, Math.floor(gain * 0.35));
+  /* コマンド実行：check があれば成功判定 → success/fail の効果を適用 */
+  function doCommand(cmd) {
+    const cost = (cmd.cost && cmd.cost.stamina) || 0;
+    if (player.stats.stamina < cost) return;
+    if (cost) player.stats.stamina -= cost;
+
+    let outcome = cmd, ok = true;
+    if (cmd.check) {
+      ok = Logic.statCheck(player, cmd.check).ok;
+      outcome = ok ? cmd.success : cmd.fail;
     }
-    gainExp(gain);
-    if (failed) { log(`😣 疲労で身が入らず…経験点+${gain}`, "bad"); pendingReact = { type: "train_fail" }; }
-    else { log(`${t.icon} ${t.name}！ 経験点+${gain}`, "good"); pendingReact = { type: "train_good", ctx: { stat: "経験点" } }; }
+    const expBefore = player.exp;
+    const summary = applyEffects(outcome.effects);
+    const expGained = player.exp - expBefore;
+
+    if (cmd.check && !ok) {
+      log(`😣 ${cmd.name}：${outcome.msg || "うまくいかなかった…"} ${summary}`, "bad");
+      pendingReact = { type: "train_fail" };
+    } else {
+      const head = outcome.msg ? `${cmd.name}：${outcome.msg}` : `${cmd.name}！`;
+      log(`${cmd.icon} ${head} ${summary}`, "good");
+      pendingReact = {
+        type: cmd.id === "rest" ? "rest" : cmd.id === "play" ? "play" : cmd.id === "talk" ? "talk" : "train_good",
+        ctx: { stat: cmd.name },
+      };
+    }
     clearPreview();
     advanceWeek();
-    if (!failed && document.getElementById("success").classList.contains("active")) {
+    if (ok && document.getElementById("success").classList.contains("active")) {
       fxSparkle();
-      fxGain(`経験点 +${gain}`);
+      if (expGained > 0) fxGain(`経験点 +${expGained}`);
     }
   }
 
-  function doRest() {
-    player.stats.stamina = Math.min(player.stats.maxStamina, player.stats.stamina + 45);
-    log(`😴 ゆっくり休んだ。体力が回復した。`, "sys");
-    pendingReact = { type: "rest" };
-    advanceWeek();
-  }
-
-  function doStudy() {
-    if (player.stats.stamina < 12) return;
-    player.stats.stamina -= 12;
-    const g = rand(6, 12);
-    gainExp(g);
-    let extra = "";
-    if (Math.random() < 0.3) {
-      const ids = Object.keys(ITEMS);
-      const id = ids[rand(0, ids.length - 1)];
-      addItem(id);
-      extra = ` ${ITEMS[id].icon}${ITEMS[id].name}を見つけた！`;
-    }
-    log(`🍱 食べ歩きで見聞を広めた。経験点+${g}${extra}`, "good");
-    pendingReact = { type: "study" };
-    advanceWeek();
-  }
-
-  // 週を進める：イベント抽選 → 次の描画
+  // 週を進める：やる気減衰 → ストレス限界チェック → イベント抽選 → 描画
   function advanceWeek() {
     player.week++;
     if (player.week > TOTAL_WEEKS) {
       finishGame();
       return;
     }
-    // 営業日でなければ一定確率でイベント（共通＋ポジション専用）
-    const isServiceDay = SERVICE_STAGES.some(s => s.day === player.week);
-    if (!isServiceDay && Math.random() < 0.5) {
-      const pool = EVENTS.filter(e => !e.pos || e.pos === player.position);
-      const ev = pool[rand(0, pool.length - 1)];
-      showEvent(ev);
-    } else {
+    // やる気は放っておくと下がる（「遊ぶ」の価値）
+    player.meters.motivation = Math.max(0, player.meters.motivation - BALANCE.weekly.motivationDecay);
+
+    // ストレス限界 → 強制ダウン（その週のイベントは起きない）
+    if (player.meters.stress >= BALANCE.stress.collapseAt) {
+      const summary = applyEffects(BALANCE.stress.collapse);
+      log(`🚨 ストレスが限界に…数日寝込んでしまった。 ${summary}`, "bad");
+      pendingReact = { type: "train_fail" };
       renderSuccess();
+      return;
     }
+
+    // 営業日でなければ確率でイベント（評価の状態で発生イベントが変わる）
+    const isServiceDay = SERVICE_STAGES.some(s => s.day === player.week);
+    if (!isServiceDay && Math.random() < BALANCE.events.chance) {
+      const ev = EventLogic.pick(player);
+      if (ev) { showEvent(ev); return; }
+    }
+    renderSuccess();
   }
 
   /* ---------- イベント ---------- */
@@ -488,31 +469,64 @@ const Game = (() => {
       b.className = "btn ghost";
       b.style.width = "100%";
       b.style.marginBottom = "10px";
-      b.textContent = c.label;
+      if (c.check) {
+        // 判定つき選択肢は使うステータスと現在の成功率を見せる（賭けの判断材料）
+        const names = (c.check.stats || []).map(k => STATS[k] ? STATS[k].name : k).join("＋");
+        const pct = Math.round(Logic.checkChance(player, c.check) * 100);
+        b.innerHTML = `${c.label}　<small style="color:var(--accent2)">（${names}判定 ${pct}%）</small>`;
+      } else {
+        b.textContent = c.label;
+      }
       b.onclick = () => resolveEvent(c);
       wrap.appendChild(b);
     });
   }
 
   function resolveEvent(choice) {
-    if (choice.effects) applyEffects(choice.effects);
-    if (choice.exp) gainExp(choice.exp);
-    if (choice.item) addItem(choice.item);
-    log(`📖 ${choice.msg}`, "good");
-    pendingReact = { type: "event_done", ctx: { msg: choice.msg } };
+    let outcome = choice, ok = true;
+    if (choice.check) {
+      ok = Logic.statCheck(player, choice.check).ok;
+      outcome = ok ? choice.success : choice.fail;
+    }
+    const summary = applyEffects(outcome.effects);
+    const itemId = choice.check ? outcome.item : choice.item; // 判定失敗時はアイテムなし
+    if (itemId) addItem(itemId);
+    const msg = outcome.msg || choice.msg || "";
+    log(`📖 ${msg} ${summary}`, ok ? "good" : "bad");
+    pendingReact = { type: "event_done", ctx: { msg } };
     show("success");
     renderSuccess();
   }
 
   /* ---------- 営業（試合）へ ---------- */
+
+  // 新ステータス → 営業ミニゲームの旧ステータスへの変換アダプタ。
+  // cooking.js / manager.js は旧キー（tech/speed/knowledge/hospitality/creativity）の
+  // ままなので、ここで橋渡しする（ミニゲーム側は無改修）。
+  function toMinigamePlayer() {
+    const s = player.stats;
+    return {
+      position: player.position,
+      stats: {
+        tech: s.work,                                   // 作業力 → 技術
+        speed: Math.round((s.work + s.mental) / 2),     // 作業力＋冷静さ → 速さ
+        knowledge: s.judgment,                          // 判断力 → 知識（メニュー解放）
+        hospitality: s.service,                         // 接客力 → 接客
+        creativity: Math.round((s.judgment + s.comm) / 2), // 発想 → 創作
+        stamina: s.stamina, maxStamina: s.maxStamina,
+      },
+    };
+  }
+
   function startService(stage) {
+    const mp = toMinigamePlayer();
     if (player.position === "manager" && typeof ManagerService !== "undefined") {
       show("cooking-mgr");
-      ManagerService.start(stage, player, (result) => onServiceFinish(stage, result));
+      ManagerService.start(stage, mp, (result) => onServiceFinish(stage, result));
     } else {
       show("cooking");
       document.getElementById("svc-msg").textContent = "";
-      Cooking.start(stage, player, (result) => onServiceFinish(stage, result));
+      Cooking.start(stage, mp, (result) => onServiceFinish(stage, result));
     }
   }
 
@@ -526,6 +540,15 @@ const Game = (() => {
     log(`🏁 営業終了「${stage.name}」 ${result.score}点 → 店評価 +${gainedStore}`, "good");
     const rateForReact = result.total ? result.served / result.total : 1;
     pendingReact = { type: rateForReact >= 0.6 ? "service_good" : "service_bad" };
+
+    // 営業結果を評価に反映（客評価＝提供率、大将＝スコア、同僚＝逃しの少なさ）
+    const sv = BALANCE.service;
+    const evalSummary = applyEffects({
+      customer: Math.round((rateForReact - 0.55) * sv.customerRateMul),
+      boss: Math.min(sv.bossGainMax, Math.round(result.score / sv.bossScoreDiv)),
+      coworker: result.lost === 0 ? sv.coworkerNoLost : (rateForReact < 0.5 ? -2 : 1),
+    });
+    if (evalSummary) log(`📊 評価の変化：${evalSummary}`, "sys");
 
     // 結果画面
     show("service-result");
@@ -547,30 +570,36 @@ const Game = (() => {
     };
   }
 
-  /* ---------- 最終評価 ---------- */
+  /* ---------- 最終評価（エンディング分岐＋店の格） ---------- */
   function finishGame() {
-    // 総合スコア = ステータス合計 * 係数 + 店評価 / 5
     const stats = statTotal();
+    // エンディング：能力・評価・ストレスの組み合わせで分岐（data/endings.js）
+    const ending = EndingLogic.decide(player, stats);
+    // 店の格（ミシュラン）はサブ評価として残す
     const overall = Math.round(stats * 0.7 + player.storeScore / 6);
     let tier = MICHELIN[0];
     for (const m of MICHELIN) if (overall >= m.min) tier = m;
 
     show("result");
     const p = POSITIONS[player.position];
-    const starStr = tier.stars > 0 ? "★".repeat(tier.stars) : (tier.min >= 180 ? "🏅" : "—");
+    const e = player.evals;
 
     document.getElementById("result-body").innerHTML = `
-      <div class="muted">${p.icon} ${p.name}としての修行を終えた</div>
-      <div class="big-stars">${starStr}</div>
-      <div class="michelin-title">${tier.title}</div>
-      <div class="result-comment">${tier.comment}</div>
+      <div class="muted">${p.icon} ${p.name}としての${TOTAL_WEEKS}週間が終わった</div>
+      <div class="big-stars">${ending.icon}</div>
+      <div class="michelin-title">${ending.title}</div>
+      <div class="result-comment">${ending.comment}</div>
       <div class="divider"></div>
       <div style="max-width:420px;margin:0 auto;text-align:left;">
         ${TRAINABLE.map(k => `<div class="row"><span>${STATS[k].icon}${STATS[k].name}</span><b>${player.stats[k]}</b></div>`).join("")}
         <div class="divider"></div>
+        <div class="row"><span>${EVALS.boss.icon}${EVALS.boss.name}</span><b>${e.boss}</b></div>
+        <div class="row"><span>${EVALS.coworker.icon}${EVALS.coworker.name}</span><b>${e.coworker}</b></div>
+        <div class="row"><span>${EVALS.customer.icon}${EVALS.customer.name}</span><b>${e.customer}</b></div>
+        <div class="row"><span>${METERS.stress.icon}${METERS.stress.name}</span><b>${player.meters.stress}</b></div>
+        <div class="divider"></div>
         <div class="row"><span>ステータス合計</span><b>${stats}</b></div>
-        <div class="row"><span>店の評価</span><b style="color:var(--accent2)">${storeStarLabel(player.storeScore)}</b>（${player.storeScore}）</div>
-        <div class="row"><span>総合スコア</span><b style="color:var(--accent)">${overall}</b></div>
+        <div class="row"><span>店の格</span><b style="color:var(--accent2)">${tier.title}</b>（${storeStarLabel(player.storeScore)}）</div>
       </div>
     `;
     document.getElementById("btn-replay").onclick = () => { show("title"); };

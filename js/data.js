@@ -3,18 +3,30 @@
  * ポジション / ステータス / レシピ / イベント / ミシュラン評価
  * ========================================================================= */
 
-/* ステータスのキーと表示名 ------------------------------------------------ */
+/* ステータスのキーと表示名 ------------------------------------------------
+ * それぞれプレイ中の明確な役割を持つ（logic/effects.js が実装）。 */
 const STATS = {
-  tech:    { name: "技術",   icon: "🔪", desc: "包丁さばき・握りの精度。調理ミスを減らす。" },
-  speed:   { name: "スピード", icon: "⚡", desc: "手の速さ。営業の制限時間が伸びる。" },
-  knowledge:{ name: "知識",  icon: "📖", desc: "目利き・レシピ。高得点メニューが解放。" },
-  hospitality:{ name:"接客", icon: "🙇", desc: "おもてなし。チップと満足度が上がる。" },
-  creativity:{ name:"創作",  icon: "✨", desc: "創作力。スコア倍率と特別メニュー。" },
-  stamina: { name: "体力",   icon: "💪", desc: "現在の体力。練習で消費する。" },
+  work:     { name: "作業力",   icon: "🔪", desc: "調理・仕込みの腕。繁忙イベントの成功率と営業の腕前に影響。" },
+  service:  { name: "接客力",   icon: "🙇", desc: "おもてなし。客イベントの成功率、営業の我慢・チップに影響。" },
+  judgment: { name: "判断力",   icon: "🧠", desc: "目利きと決断。選択イベントの成功率、高得点メニュー解放に影響。" },
+  mental:   { name: "メンタル", icon: "🛡️", desc: "心の強さ。ストレスの増加量を軽減する。" },
+  comm:     { name: "コミュ力", icon: "💬", desc: "人付き合い。大将・同僚評価の上がりやすさに影響。" },
+  stamina:  { name: "体力",     icon: "💪", desc: "現在の体力。コマンドで消費する。" },
 };
 
 /* 育成可能なステータス（体力は別管理） */
-const TRAINABLE = ["tech", "speed", "knowledge", "hospitality", "creativity"];
+const TRAINABLE = ["work", "service", "judgment", "mental", "comm"];
+
+/* メーター（0-100）と評価（0-100）の表示メタ */
+const METERS = {
+  stress:     { name: "ストレス", icon: "🔥", desc: "溜まると効率低下、100で倒れる。エンディングにも影響。" },
+  motivation: { name: "やる気",   icon: "🎵", desc: "経験点の獲得倍率に直結。毎週少しずつ下がる。" },
+};
+const EVALS = {
+  boss:     { name: "大将評価", icon: "👔", desc: "高いと引き立てイベント。低いと理不尽の矢面に。" },
+  coworker: { name: "同僚評価", icon: "🤝", desc: "高いと支援イベント。低いと孤立イベント。" },
+  customer: { name: "客評価",   icon: "⭐", desc: "お客さんからの人気。営業結果で変動。" },
+};
 
 /* ポジション定義 --------------------------------------------------------- */
 const POSITIONS = {
@@ -22,10 +34,10 @@ const POSITIONS = {
     id: "shokunin",
     name: "寿司職人",
     icon: "🍣",
-    catch: "握り一筋。技術こそ全て。",
-    desc: "カウンターで握る花形。技術が伸びやすく、寿司メニューで高得点を狙える。",
-    main: "tech",
-    base: { tech: 28, speed: 22, knowledge: 20, hospitality: 14, creativity: 18 },
+    catch: "握り一筋。腕こそ全て。",
+    desc: "カウンターで握る花形。作業力が伸びやすく、寿司メニューで高得点を狙える。",
+    main: "work",
+    base: { work: 28, service: 14, judgment: 22, mental: 20, comm: 14 },
     // 営業時のボーナス
     bonus: { scoreMult: 1.15, info: "寿司系メニューのスコア +15%" },
   },
@@ -34,9 +46,9 @@ const POSITIONS = {
     name: "キッチン担当",
     icon: "🍳",
     catch: "厨房を回す縁の下の力持ち。",
-    desc: "汁物・焼き物・揚げ物を担当。スピードが伸びやすく、手数で稼ぐ。",
-    main: "speed",
-    base: { tech: 22, speed: 28, knowledge: 18, hospitality: 16, creativity: 16 },
+    desc: "汁物・焼き物・揚げ物を担当。メンタルが伸びやすく、タフに働ける。",
+    main: "mental",
+    base: { work: 24, service: 14, judgment: 18, mental: 26, comm: 16 },
     bonus: { timeBonus: 8, info: "営業の制限時間 +8秒" },
   },
   floor: {
@@ -44,9 +56,9 @@ const POSITIONS = {
     name: "フロアスタッフ",
     icon: "🍵",
     catch: "笑顔でお客様を捌く。",
-    desc: "接客と配膳の要。接客が伸びやすく、チップと客の我慢強さが上がる。",
-    main: "hospitality",
-    base: { tech: 16, speed: 24, knowledge: 18, hospitality: 28, creativity: 14 },
+    desc: "接客と配膳の要。接客力が伸びやすく、チップと客の我慢強さが上がる。",
+    main: "service",
+    base: { work: 14, service: 28, judgment: 18, mental: 16, comm: 24 },
     bonus: { patience: 1.25, tip: 1.3, info: "客の我慢 +25% / チップ +30%" },
   },
   manager: {
@@ -54,9 +66,9 @@ const POSITIONS = {
     name: "マネージャー",
     icon: "📋",
     catch: "店全体を見渡す司令塔。",
-    desc: "経営とマネジメント。知識が伸びやすく、店の評価が上がりやすい。",
-    main: "knowledge",
-    base: { tech: 18, speed: 20, knowledge: 26, hospitality: 22, creativity: 18 },
+    desc: "経営とマネジメント。判断力が伸びやすく、店の評価が上がりやすい。",
+    main: "judgment",
+    base: { work: 16, service: 20, judgment: 26, mental: 18, comm: 22 },
     bonus: { ratingMult: 1.2, info: "営業後の店評価アップ +20%" },
   },
 };
@@ -112,211 +124,21 @@ const SERVICE_STAGES = [
  * effect の "all" は育成可能な全能力に加算。
  * ------------------------------------------------------------------------ */
 const ITEMS = {
-  energy:    { id: "energy",    name: "栄養ドリンク",   icon: "🧃", desc: "体力 +40",          effect: { stamina: 40 } },
-  knife:     { id: "knife",     name: "上等な包丁",     icon: "🔪", desc: "技術 +8",           effect: { tech: 8 } },
-  recipe:    { id: "recipe",    name: "秘伝のレシピ書", icon: "📕", desc: "知識 +8",           effect: { knowledge: 8 } },
-  tea:       { id: "tea",       name: "高級茶葉",       icon: "🍵", desc: "接客 +8",           effect: { hospitality: 8 } },
-  whetstone: { id: "whetstone", name: "名工の砥石",     icon: "🪨", desc: "技術 +5 / スピード +5", effect: { tech: 5, speed: 5 } },
-  charm:     { id: "charm",     name: "商売繁盛のお守り", icon: "🧧", desc: "創作 +6 / 接客 +4",  effect: { creativity: 6, hospitality: 4 } },
-  bento:     { id: "bento",     name: "特製まかない",   icon: "🍱", desc: "体力 +25 / 全能力 +2", effect: { stamina: 25, all: 2 } },
+  energy:    { id: "energy",    name: "栄養ドリンク",   icon: "🧃", desc: "体力 +40",                    effect: { stamina: 40 } },
+  knife:     { id: "knife",     name: "上等な包丁",     icon: "🔪", desc: "作業力 +8",                   effect: { work: 8 } },
+  recipe:    { id: "recipe",    name: "秘伝のレシピ書", icon: "📕", desc: "判断力 +8",                   effect: { judgment: 8 } },
+  tea:       { id: "tea",       name: "高級茶葉",       icon: "🍵", desc: "接客力 +8",                   effect: { service: 8 } },
+  whetstone: { id: "whetstone", name: "名工の砥石",     icon: "🪨", desc: "作業力 +5 / ストレス -5",     effect: { work: 5, stress: -5 } },
+  charm:     { id: "charm",     name: "商売繁盛のお守り", icon: "🧧", desc: "コミュ力 +6 / ストレス -5", effect: { comm: 6, stress: -5 } },
+  bento:     { id: "bento",     name: "特製まかない",   icon: "🍱", desc: "体力 +25 / やる気 +10 / ストレス -10", effect: { stamina: 25, motivation: 10, stress: -10 } },
 };
 
-/* ランダムイベント -------------------------------------------------------
- * 育成パートで一定確率で発生。選択肢で結果が変わる。
- * chara: 立ち絵の話者（me / oyakata / heroine / rival）。省略時は me。
- * choices[].item: 選ぶと入手するアイテムID。
+/* イベント・訓練コマンド・バランス値は js/data/ 配下へ移動した。
+ *   js/data/events.js   … ランダムイベント（対立軸・関係性・ポジション専用）
+ *   js/data/commands.js … 育成コマンド
+ *   js/data/balance.js  … 調整値（初期値・倍率・しきい値・能力アップコスト）
+ *   js/data/endings.js  … エンディング分岐
  * ------------------------------------------------------------------------ */
-const EVENTS = [
-  {
-    id: "morning_market",
-    title: "豊洲市場へ早朝買い出し",
-    text: "兄弟子に「いい本マグロが入ってる」と誘われた。寝不足だが…？",
-    choices: [
-      { label: "気合いで行く！", effects: { knowledge: 8, stamina: -20 }, msg: "最高のネタを見極めた！ 知識+8（体力-20）" },
-      { label: "睡眠を優先",     effects: { stamina: 10 }, msg: "しっかり休んだ。体力+10" },
-    ],
-  },
-  {
-    id: "regular_customer",
-    title: "常連さんの無茶ぶり",
-    text: "「大将、今日のおすすめで一品作ってよ」と常連さん。腕の見せ所だ。",
-    choices: [
-      { label: "創作寿司に挑戦", effects: { creativity: 10, hospitality: 4 }, msg: "新作が大ウケ！ 創作+10 接客+4" },
-      { label: "無難に定番を",   effects: { hospitality: 6 }, msg: "安定の旨さ。接客+6" },
-    ],
-  },
-  {
-    id: "knife_training",
-    title: "深夜の包丁研ぎ",
-    text: "閉店後、ひとり厨房に残って包丁を研ぐか迷っている。",
-    choices: [
-      { label: "納得いくまで研ぐ", effects: { tech: 12, stamina: -15 }, msg: "切れ味が冴えた。技術+12（体力-15）" },
-      { label: "今日はもう帰る",   effects: { stamina: 8 }, msg: "英気を養った。体力+8" },
-    ],
-  },
-  {
-    id: "food_show",
-    title: "グルメ番組の取材",
-    text: "テレビ局から「お店を取材したい」と連絡が。緊張で手が震える。",
-    choices: [
-      { label: "堂々と対応する",   effects: { hospitality: 10, knowledge: 4 }, msg: "落ち着いて受け答え。接客+10 知識+4" },
-      { label: "断って練習する",   effects: { tech: 6, speed: 6 }, msg: "黙々と練習。技術+6 スピード+6" },
-    ],
-  },
-  {
-    id: "rival",
-    title: "ライバル店の偵察",
-    text: "向かいに出来た話題の寿司店。視察に行くか？",
-    choices: [
-      { label: "客として食べに行く", effects: { knowledge: 9, creativity: 5 }, msg: "盗めるものは盗んだ。知識+9 創作+5" },
-      { label: "自分の道を磨く",     effects: { tech: 8 }, msg: "我が道を行く。技術+8" },
-    ],
-  },
-  {
-    id: "slump",
-    title: "スランプ…",
-    text: "最近どうも握りがしっくりこない。基本に立ち返るべきか。",
-    choices: [
-      { label: "ひたすら反復練習",   effects: { tech: 5, speed: 5, stamina: -10 }, msg: "地道に克服。技術+5 スピード+5（体力-10）" },
-      { label: "思い切ってリフレッシュ", effects: { stamina: 25, creativity: 3 }, msg: "気分一新！ 体力+25 創作+3" },
-    ],
-  },
-
-  /* --- 彼女「さくら」イベント --- */
-  {
-    id: "heroine_visit", chara: "heroine", expr: "happy",
-    title: "さくらの差し入れ",
-    text: "幼なじみの「さくら」が店に来てくれた。「無理してない？ はい、これ作ってきたよ！」",
-    choices: [
-      { label: "ありがたく受け取る", effects: { stamina: 20, hospitality: 4 }, item: "bento", msg: "差し入れに元気百倍！ 体力+20 接客+4（特製まかない を入手）" },
-      { label: "少し一緒に休む",     effects: { stamina: 30, creativity: 5 }, msg: "楽しいひととき。体力+30 創作+5" },
-    ],
-  },
-  {
-    id: "heroine_date", chara: "heroine", expr: "normal",
-    title: "休日のお誘い",
-    text: "「たまには息抜きしよ？」とさくらに誘われた。どうする？",
-    choices: [
-      { label: "デートする",         effects: { stamina: 25, hospitality: 8, creativity: 4 }, msg: "心が満たされた。体力+25 接客+8 創作+4" },
-      { label: "店の仕込みを優先",   effects: { tech: 7 }, item: "tea", msg: "真面目に仕込み。技術+7（さくらが高級茶葉を置いていった）" },
-    ],
-  },
-
-  /* --- ライバル「龍二」イベント --- */
-  {
-    id: "rival_challenge", chara: "rival", expr: "smug",
-    title: "ライバル登場",
-    text: "向かいの店の若大将「龍二」が挑発してきた。「お前の握り、見せてもらおうか」",
-    choices: [
-      { label: "勝負を受ける！",     effects: { tech: 10, speed: 6, stamina: -10 }, msg: "火花散る対決！ 技術+10 スピード+6（体力-10）" },
-      { label: "技を盗む",           effects: { knowledge: 8, creativity: 6 }, msg: "観察に徹した。知識+8 創作+6" },
-    ],
-  },
-  {
-    id: "rival_recipe", chara: "rival", expr: "smug",
-    title: "ライバルの新作",
-    text: "龍二の新作が話題をさらっているらしい。悔しさで燃えてきた…！",
-    choices: [
-      { label: "対抗して創作する",   effects: { creativity: 11, stamina: -8 }, item: "charm", msg: "負けじと新作開発！ 創作+11（体力-8）（お守り を入手）" },
-      { label: "基礎を固める",       effects: { tech: 6, speed: 6 }, item: "whetstone", msg: "地に足つけて鍛錬。技術+6 スピード+6（砥石を入手）" },
-    ],
-  },
-
-  /* ===== ポジション専用イベント（pos が一致する職種だけ発生） ===== */
-  /* --- 寿司職人 --- */
-  {
-    id: "shok_oyakata", pos: "shokunin", chara: "oyakata", expr: "normal",
-    title: "大将直伝・握りの極意",
-    text: "「ええか、シャリは赤子を包むように握れ」。大将がつきっきりで教えてくれる。",
-    choices: [
-      { label: "とことん教わる", effects: { stamina: -12 }, exp: 34, msg: "握りの極意を会得！ 経験点+34（体力-12）" },
-      { label: "見て盗む",       exp: 18, msg: "目で盗んだ。経験点+18" },
-    ],
-  },
-  {
-    id: "shok_creative", pos: "shokunin", chara: "me", expr: "fired",
-    title: "創作寿司の構想",
-    text: "夜中、ふと新しい握りのアイデアが浮かんだ。試作してみるか？",
-    choices: [
-      { label: "朝まで試作する", effects: { stamina: -18 }, exp: 28, item: "charm", msg: "新作が完成！ 経験点+28（体力-18）お守り入手" },
-      { label: "メモして寝る",   effects: { stamina: 8 }, exp: 12, msg: "アイデアは温存。経験点+12 体力+8" },
-    ],
-  },
-  /* --- キッチン担当 --- */
-  {
-    id: "kit_rush", pos: "kitchen", chara: "me", expr: "tired",
-    title: "仕込みの山",
-    text: "明日の仕込みが大量に残っている。徹夜で片付けるか？",
-    choices: [
-      { label: "一気に片付ける", effects: { stamina: -20 }, exp: 32, msg: "猛スピードで完了！ 経験点+32（体力-20）" },
-      { label: "要点だけ手早く", effects: { stamina: -6 }, exp: 17, msg: "効率重視。経験点+17（体力-6）" },
-    ],
-  },
-  {
-    id: "kit_fry", pos: "kitchen", chara: "oyakata", expr: "happy",
-    title: "揚げ場の極意",
-    text: "大将が天ぷらの揚げ加減を伝授してくれるという。",
-    choices: [
-      { label: "火加減を体で覚える", effects: { stamina: -10 }, exp: 30, item: "whetstone", msg: "揚げの達人へ！ 経験点+30（体力-10）砥石入手" },
-      { label: "レシピで覚える",     exp: 17, msg: "理屈で理解。経験点+17" },
-    ],
-  },
-  /* --- フロアスタッフ --- */
-  {
-    id: "flo_regular", pos: "floor", chara: "me", expr: "happy",
-    title: "常連さんとの会話",
-    text: "常連の旦那衆が「姉ちゃん、話聞いてよ」と上機嫌だ。",
-    choices: [
-      { label: "笑顔で聞き役に",       effects: { stamina: -6 }, exp: 28, msg: "場が和んだ！ 経験点+28（体力-6）" },
-      { label: "さりげなく注文を促す", exp: 17, item: "tea", msg: "商売上手。経験点+17 高級茶葉入手" },
-    ],
-  },
-  {
-    id: "flo_complaint", pos: "floor", chara: "oyakata", expr: "worried",
-    title: "クレーム対応",
-    text: "提供が遅いとお客さんがご立腹。どう収める？",
-    choices: [
-      { label: "誠心誠意あやまる", effects: { stamina: -8 }, exp: 26, msg: "丁寧な対応で納得してもらえた。経験点+26（体力-8）" },
-      { label: "一品サービスする", effects: { stamina: -2 }, exp: 15, msg: "機転で解決。経験点+15" },
-    ],
-  },
-  /* --- マネージャー --- */
-  {
-    id: "mgr_books", pos: "manager", chara: "me", expr: "normal",
-    title: "帳簿とにらめっこ",
-    text: "今月の売上と原価を見直す。改善点が見えてきた。",
-    choices: [
-      { label: "徹底的に分析する", effects: { stamina: -10 }, exp: 32, msg: "経営感覚が磨かれた！ 経験点+32（体力-10）" },
-      { label: "要点だけ確認",     exp: 17, msg: "効率よく把握。経験点+17" },
-    ],
-  },
-  {
-    id: "mgr_staff", pos: "manager", chara: "oyakata", expr: "normal",
-    title: "スタッフ面談",
-    text: "若いスタッフが何か悩んでいるようだ。話を聞くか？",
-    choices: [
-      { label: "じっくり向き合う", effects: { stamina: -6 }, exp: 28, item: "charm", msg: "信頼が深まった。経験点+28（体力-6）お守り入手" },
-      { label: "励まして送り出す", exp: 16, msg: "前向きに送り出した。経験点+16" },
-    ],
-  },
-];
-
-/* 訓練コマンド（経験点を稼ぐ）。得意稽古はポジションで内容が変わる。 */
-const TRAININGS = [
-  { id: "hard",   icon: "🔥", name: "猛特訓",   exp: [18, 26], cost: 32, risk: true,  note: "経験点 大／体力 大・疲労注意" },
-  { id: "normal", icon: "💪", name: "通常稽古", exp: [10, 15], cost: 22, note: "経験点 中／体力 中" },
-  { id: "light",  icon: "🍵", name: "軽い稽古", exp: [5, 8],   cost: 8,  note: "経験点 小／体力 小" },
-];
-
-/* 能力アップ：現在値に応じた「+1あたりの経験点コスト」 */
-function allocCostAt(v) {
-  if (v >= 90) return 12;
-  if (v >= 80) return 8;
-  if (v >= 70) return 5;
-  if (v >= 60) return 3;
-  if (v >= 40) return 2;
-  return 1;
-}
 
 /* ミシュラン評価のしきい値（総合スコアから判定） ------------------------- */
 const MICHELIN = [

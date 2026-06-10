@@ -265,19 +265,26 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .stat-card {
   position: absolute; left: 10px; top: 60px; z-index: 3;
   width: min(48%, 248px);
+  max-height: calc(100% - 240px);   /* 下の能力アップ/アイテムボタン（2段 約130px）と重ねない */
+  overflow-y: auto;
   background: rgba(26,19,14,.86); border: 2px solid var(--accent2);
-  border-radius: 12px; padding: 8px; box-shadow: 0 4px 12px rgba(0,0,0,.45);
+  border-radius: 12px; padding: 7px 8px; box-shadow: 0 4px 12px rgba(0,0,0,.45);
 }
-.sc-head { display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--line); padding-bottom: 5px; margin-bottom: 6px; }
-.sc-icon { font-size: 18px; }
-.sc-name { font-weight: 800; font-size: 15px; color: var(--accent2); }
-.sc-stats { display: flex; flex-direction: column; gap: 4px; }
-.sc-stat { display: flex; align-items: center; gap: 6px; }
-.ss-name { flex: 1; font-size: 12px; white-space: nowrap; }
-.ss-grade { width: 24px; text-align: center; font-weight: 900; font-size: 16px; border-radius: 5px; background: #15100c; }
-.ss-val { width: 30px; text-align: right; font-weight: 800; font-size: 13px; font-variant-numeric: tabular-nums; }
+.sc-head { display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--line); padding-bottom: 4px; margin-bottom: 4px; }
+.sc-icon { font-size: 16px; }
+.sc-name { font-weight: 800; font-size: 14px; color: var(--accent2); }
+.sc-stats { display: flex; flex-direction: column; gap: 2px; }
+.sc-stat { display: flex; align-items: center; gap: 5px; }
+.ss-name { flex: 1; font-size: 11px; white-space: nowrap; }
+.ss-grade { width: 21px; text-align: center; font-weight: 900; font-size: 14px; border-radius: 5px; background: #15100c; }
+.ss-val { width: 28px; text-align: right; font-weight: 800; font-size: 12px; font-variant-numeric: tabular-nums; }
 .g-S { color: #ff5a8a; } .g-A { color: #ff8a3c; } .g-B { color: #f4c542; } .g-C { color: #6fae5a; }
 .g-D { color: #5ab0d9; } .g-E { color: #9aa0a8; } .g-F { color: #b6a489; } .g-G { color: #8a7f70; }
+/* メーター・評価の状態色 */
+.sc-divider { height: 1px; background: var(--line); margin: 5px 0; }
+.val-good { color: var(--green); }
+.val-warn { color: var(--accent2); }
+.val-danger { color: var(--accent); }
 
 /* 右：ランクゲージ＋ヒント */
 .pawa-right {
@@ -330,13 +337,13 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .cmd-bar .cmd .ct { font-size: 13px; }
 .cmd-bar .cmd .cd { font-size: 10px; }
 .cmd-bar .cmd:disabled { opacity: .45; }
-.cmd-bar .cmd[data-kind="tech"]        { border-color: #d94f3d; } .cmd-bar .cmd[data-kind="tech"] .ci        { background: #5a201a; }
-.cmd-bar .cmd[data-kind="speed"]       { border-color: #e0913c; } .cmd-bar .cmd[data-kind="speed"] .ci       { background: #5a3a18; }
-.cmd-bar .cmd[data-kind="knowledge"]   { border-color: #4f8fd9; } .cmd-bar .cmd[data-kind="knowledge"] .ci   { background: #1c3a5a; }
-.cmd-bar .cmd[data-kind="hospitality"] { border-color: #6fae5a; } .cmd-bar .cmd[data-kind="hospitality"] .ci { background: #234a1c; }
-.cmd-bar .cmd[data-kind="creativity"]  { border-color: #b06cc0; } .cmd-bar .cmd[data-kind="creativity"] .ci  { background: #3e2348; }
-.cmd-bar .cmd[data-kind="rest"]        { border-color: #5aa0c4; } .cmd-bar .cmd[data-kind="rest"] .ci        { background: #1c3a48; }
-.cmd-bar .cmd[data-kind="study"]       { border-color: #d8a23c; } .cmd-bar .cmd[data-kind="study"] .ci       { background: #5a4318; }
+.cmd-bar .cmd[data-kind="work"]     { border-color: #d94f3d; } .cmd-bar .cmd[data-kind="work"] .ci     { background: #5a201a; }
+.cmd-bar .cmd[data-kind="service"]  { border-color: #6fae5a; } .cmd-bar .cmd[data-kind="service"] .ci  { background: #234a1c; }
+.cmd-bar .cmd[data-kind="judgment"] { border-color: #4f8fd9; } .cmd-bar .cmd[data-kind="judgment"] .ci { background: #1c3a5a; }
+.cmd-bar .cmd[data-kind="mental"]   { border-color: #b06cc0; } .cmd-bar .cmd[data-kind="mental"] .ci   { background: #3e2348; }
+.cmd-bar .cmd[data-kind="comm"]     { border-color: #e0913c; } .cmd-bar .cmd[data-kind="comm"] .ci     { background: #5a3a18; }
+.cmd-bar .cmd[data-kind="rest"]     { border-color: #5aa0c4; } .cmd-bar .cmd[data-kind="rest"] .ci     { background: #1c3a48; }
+.cmd-bar .cmd[data-kind="play"]     { border-color: #d8a23c; } .cmd-bar .cmd[data-kind="play"] .ci     { background: #5a4318; }
 .cmd-bar .cmd.service {
   flex-basis: 100%; max-width: none; flex-direction: row; gap: 10px; justify-content: center;
   background: linear-gradient(180deg, var(--accent), #b53b2c); color: #fff; border: none;
