@@ -93,6 +93,7 @@ const Cooking = (() => {
       // プレイヤー & 入力（x:左右, z:奥行き）
       x: 0, z: 2.2, facing: 0,
       input: { up: false, down: false, left: false, right: false },
+      stick: { active: false, x: 0, z: 0 },   // バーチャルジョイスティック（-1..1）
       pressed: new Set(),
       actionCd: 0,
       nearId: null,
@@ -414,13 +415,19 @@ const Cooking = (() => {
     state.timeLeft -= dt;
     if (state.actionCd > 0) state.actionCd -= dt;
 
-    // 移動（up=奥へ -z / down=手前へ +z）
-    const dx = (state.input.right ? 1 : 0) - (state.input.left ? 1 : 0);
-    const dz = (state.input.down ? 1 : 0) - (state.input.up ? 1 : 0);
+    // 移動（キーボード or バーチャルスティック。スティックは倒し具合でアナログ移動）
+    let dx = (state.input.right ? 1 : 0) - (state.input.left ? 1 : 0);
+    let dz = (state.input.down ? 1 : 0) - (state.input.up ? 1 : 0);
+    let mag = 1;
+    if (state.stick.active) {
+      dx = state.stick.x;
+      dz = state.stick.z;
+      mag = Math.min(1, Math.hypot(dx, dz));
+    }
     if (dx || dz) {
       const len = Math.hypot(dx, dz) || 1;
-      state.x += (dx / len) * state.moveSpeed * dt;
-      state.z += (dz / len) * state.moveSpeed * dt;
+      state.x += (dx / len) * state.moveSpeed * mag * dt;
+      state.z += (dz / len) * state.moveSpeed * mag * dt;
       state.facing = Math.atan2(dx, dz);
     }
     state.x = Math.max(-BOUND_X, Math.min(BOUND_X, state.x));
@@ -645,22 +652,63 @@ const Cooking = (() => {
     window.addEventListener("keydown", keyDown);
     window.addEventListener("keyup", keyUp);
 
-    const bindHold = (sel, dir) => {
-      const el = document.querySelector(sel);
-      if (!el) return;
-      const on = (e) => { e.preventDefault(); if (state) state.input[dir] = true; };
-      const off = (e) => { e.preventDefault(); if (state) state.input[dir] = false; };
-      el.addEventListener("pointerdown", on);
-      el.addEventListener("pointerup", off);
-      el.addEventListener("pointerleave", off);
-      el.addEventListener("pointercancel", off);
-      touchHandlers.push([el, "pointerdown", on], [el, "pointerup", off],
-        [el, "pointerleave", off], [el, "pointercancel", off]);
-    };
-    bindHold("#pad-up", "up");
-    bindHold("#pad-down", "down");
-    bindHold("#pad-left", "left");
-    bindHold("#pad-right", "right");
+    /* --- バーチャルジョイスティック（今時のスマホ操作）---
+     * 画面（キッチン）のどこを触ってもその場にスティックが出現。
+     * ドラッグした方向・倒し具合でアナログ移動。指を離すと止まる。
+     * pointerId を追跡するので、もう一方の指で作業ボタンを同時に押せる。 */
+    const zone = document.getElementById("stick-zone");
+    const base = document.getElementById("stick-base");
+    const knob = document.getElementById("stick-knob");
+    if (zone && base && knob) {
+      const RADIUS = 52;                  // スティックの可動半径(px)
+      let stickPointer = null;
+      let cx = 0, cy = 0;                 // スティック中心（zone内座標）
+
+      const setKnob = (dx, dy) => {
+        knob.style.transform = `translate(${dx}px, ${dy}px)`;
+      };
+      const onDown = (e) => {
+        if (!state || !state.running || stickPointer !== null) return;
+        e.preventDefault();
+        stickPointer = e.pointerId;
+        try { zone.setPointerCapture(e.pointerId); } catch (_) { /* 一部環境では失敗するが動作に支障なし */ }
+        const r = zone.getBoundingClientRect();
+        cx = e.clientX - r.left;
+        cy = e.clientY - r.top;
+        base.style.left = cx + "px";
+        base.style.top = cy + "px";
+        base.hidden = false;
+        setKnob(0, 0);
+        state.stick.active = true;
+        state.stick.x = 0; state.stick.z = 0;
+      };
+      const onMove = (e) => {
+        if (e.pointerId !== stickPointer || !state) return;
+        e.preventDefault();
+        const r = zone.getBoundingClientRect();
+        let dx = (e.clientX - r.left) - cx;
+        let dy = (e.clientY - r.top) - cy;
+        const len = Math.hypot(dx, dy);
+        if (len > RADIUS) { dx = dx / len * RADIUS; dy = dy / len * RADIUS; }
+        setKnob(dx, dy);
+        state.stick.x = dx / RADIUS;      // 画面の上下=奥行き(z)に対応
+        state.stick.z = dy / RADIUS;
+      };
+      const onUp = (e) => {
+        if (e.pointerId !== stickPointer || !state) return;
+        e.preventDefault();
+        stickPointer = null;
+        base.hidden = true;
+        state.stick.active = false;
+        state.stick.x = 0; state.stick.z = 0;
+      };
+      zone.addEventListener("pointerdown", onDown);
+      zone.addEventListener("pointermove", onMove);
+      zone.addEventListener("pointerup", onUp);
+      zone.addEventListener("pointercancel", onUp);
+      touchHandlers.push([zone, "pointerdown", onDown], [zone, "pointermove", onMove],
+        [zone, "pointerup", onUp], [zone, "pointercancel", onUp]);
+    }
 
     const act = document.querySelector("#btn-action");
     if (act) {
@@ -676,6 +724,8 @@ const Cooking = (() => {
     keyDown = keyUp = null;
     for (const [el, ev, fn] of touchHandlers) el.removeEventListener(ev, fn);
     touchHandlers = [];
+    const base = document.getElementById("stick-base");
+    if (base) base.hidden = true;
   }
 
   /* ---------- 3D描画 ---------- */
@@ -764,6 +814,21 @@ const Cooking = (() => {
       if (fill) fill.style.width = (p * 100) + "%";
       el.classList.toggle("warn", p < 0.5 && p >= 0.25);
       el.classList.toggle("danger", p < 0.25);
+    }
+    // 作業ボタンを「次に何が起こるか」表示に（コンテキスト型）
+    const act = document.getElementById("btn-action");
+    if (act) {
+      if (state.nearId !== act.dataset.near) {
+        act.dataset.near = state.nearId || "";
+        if (state.nearId) {
+          const meta = EXTRA[state.nearId] || ACTIONS[state.nearId];
+          act.innerHTML = `<span class="ao-i">${meta.icon}</span><span class="ao-l">${meta.label}</span>`;
+          act.classList.add("ready");
+        } else {
+          act.innerHTML = `<span class="ao-i">🖐️</span><span class="ao-l">台へ近づこう</span>`;
+          act.classList.remove("ready");
+        }
+      }
     }
   }
 

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>鮨サクセス 〜目指せミシュラン三つ星〜</title>
-<link rel="stylesheet" href="css/style.css?v=14">
+<link rel="stylesheet" href="css/style.css?v=15">
 </head>
 <body>
 <div id="app">
@@ -257,18 +257,15 @@
       <div class="station-title">🍳 キッチン（3D・シェフを動かして食材を運ぶ）</div>
       <div class="kitchen-wrap">
         <canvas id="kitchen"></canvas>
+        <!-- バーチャルジョイスティック：触れた場所にスティックが出現 -->
+        <div id="stick-zone"></div>
+        <div id="stick-base" hidden><div id="stick-knob"></div></div>
+        <!-- コンテキスト作業ボタン（近くの台に応じて表示が変わる） -->
+        <button id="btn-action" class="action-overlay">
+          <span class="ao-i">🖐️</span><span class="ao-l">台へ近づこう</span>
+        </button>
       </div>
-
-      <div class="controls">
-        <div class="dpad">
-          <button id="pad-up"    class="pad">▲</button>
-          <button id="pad-left"  class="pad">◀</button>
-          <button id="pad-down"  class="pad">▼</button>
-          <button id="pad-right" class="pad">▶</button>
-        </div>
-        <button id="btn-action" class="btn gold action-btn">作業<br><small>SPACE</small></button>
-      </div>
-      <div class="muted ctrl-hint">操作：<b>WASD / 矢印キー</b>で移動、<b>スペース / Enter</b>で作業（スマホは下のボタン）。まず<b>お皿🍽️</b>を取り→食材・加工台の順に手順どおり組み立て→<b>提供口🛎️</b>へ運ぶ。間違えたら<b>片付け🗑️</b>でやり直し（1皿ずつ）。</div>
+      <div class="muted ctrl-hint">📱 スマホ：<b>画面のどこでもドラッグ</b>で移動（バーチャルスティック）＋<b>右下ボタン</b>で作業。⌨️ PC：<b>WASD / 矢印キー</b>＋<b>スペース</b>。まず<b>お皿🍽️</b>を取り→手順どおり組み立て→<b>提供口🛎️</b>へ。間違えたら<b>片付け🗑️</b>でやり直し。</div>
     </div>
   </section>
 
@@ -339,7 +336,7 @@
 <script src="js/logic/events.js?v=12"></script>
 <script src="js/logic/endings.js?v=12"></script>
 <script src="js/chara.js?v=12"></script>
-<script src="js/cooking.js?v=12"></script>
+<script src="js/cooking.js?v=14"></script>
 <script src="js/manager.js?v=12"></script>
 <script src="js/game.js?v=12"></script>
 </body>
