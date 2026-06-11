@@ -14,6 +14,9 @@ const Cooking = (() => {
   let rafId = null;
   let lastTs = 0;
 
+  // スマホ縦持ち検知（縦の間はゲームを自動ポーズして時間を止める）
+  const PORTRAIT_MQL = window.matchMedia("(orientation: portrait) and (max-width: 820px)");
+
   // ステーションの配置（奥列＝食材、手前列＝皿/加工/提供/ゴミ箱）
   const LAYOUT = {
     far:  ["rice", "maguro", "salmon", "tamago", "ebi", "ikura", "uni"],
@@ -389,10 +392,13 @@ const Cooking = (() => {
 
   function resize() {
     if (!renderer || !camera) return;
+    // canvasはCSS（absolute inset:0）でラッパーいっぱいに広がる。
+    // バッファとカメラ比率を実寸に合わせる（横画面フルスクリーンにも追従）。
     const wrap = document.querySelector(".kitchen-wrap");
     const w = (wrap && wrap.clientWidth) || 760;
-    const h = Math.round(w * 9 / 16);
-    renderer.setSize(w, h, true);
+    let h = (wrap && wrap.clientHeight) || 0;
+    if (!h || h < 80) h = Math.round(w * 9 / 16);
+    renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   }
@@ -400,6 +406,12 @@ const Cooking = (() => {
   /* ---------- ループ ---------- */
   function loop(ts) {
     if (!state || !state.running) return;
+    // 縦持ち中は自動ポーズ（rotate-overlay 表示中。時間も減らない）
+    if (PORTRAIT_MQL.matches) {
+      lastTs = ts;
+      rafId = requestAnimationFrame(loop);
+      return;
+    }
     if (!lastTs) lastTs = ts;
     const dt = Math.min((ts - lastTs) / 1000, 0.1);
     lastTs = ts;

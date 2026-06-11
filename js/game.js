@@ -518,19 +518,46 @@ const Game = (() => {
     };
   }
 
+  /* 営業中のゲームモード：スクロール禁止＋（可能なら）フルスクリーン＆横画面ロック。
+   * Android Chrome は横ロックまで効く。iOS Safari は非対応なので、
+   * CSSの縦持ちオーバーレイ（#cooking .rotate-overlay）と自動ポーズで誘導する。 */
+  function enterGameMode(sectionId) {
+    document.body.classList.add("game-lock");
+    const el = document.getElementById(sectionId);
+    try {
+      if (el && el.requestFullscreen) {
+        el.requestFullscreen()
+          .then(() => {
+            if (screen.orientation && screen.orientation.lock) {
+              return screen.orientation.lock("landscape");
+            }
+          })
+          .catch(() => {});
+      }
+    } catch (_) {}
+  }
+  function exitGameMode() {
+    document.body.classList.remove("game-lock");
+    try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (_) {}
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  }
+
   function startService(stage) {
     const mp = toMinigamePlayer();
     if (player.position === "manager" && typeof ManagerService !== "undefined") {
       show("cooking-mgr");
+      enterGameMode("cooking-mgr");
       ManagerService.start(stage, mp, (result) => onServiceFinish(stage, result));
     } else {
       show("cooking");
+      enterGameMode("cooking");
       document.getElementById("svc-msg").textContent = "";
       Cooking.start(stage, mp, (result) => onServiceFinish(stage, result));
     }
   }
 
   function onServiceFinish(stage, result) {
+    exitGameMode();
     const p = POSITIONS[player.position];
     const ratingMult = (p.bonus.ratingMult || 1);
     const gainedStore = Math.round(result.score * ratingMult);
