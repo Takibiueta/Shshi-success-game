@@ -77,6 +77,7 @@ const Game = (() => {
       storeScore: 0,        // 営業の累積（店の評価に直結）
       serviceCount: 0,
       items: { energy: 1, recipe: 1 },   // 初期アイテム
+      seenEvents: {},       // 一度きりイベントの既読管理
     };
     logLines = [];
     log(`${p.icon} 「${p.name}」として修行開始！ 目指せミシュラン三つ星！`, "good");
@@ -416,15 +417,15 @@ const Game = (() => {
       };
     }
     clearPreview();
-    advanceWeek();
+    advanceWeek(cmd.id);
     if (ok && document.getElementById("success").classList.contains("active")) {
       fxSparkle();
       if (expGained > 0) fxGain(`経験点 +${expGained}`);
     }
   }
 
-  // 週を進める：やる気減衰 → ストレス限界チェック → イベント抽選 → 描画
-  function advanceWeek() {
+  // 週を進める：やる気減衰 → ストレス限界チェック → イベント抽選（ADV再生） → 描画
+  function advanceWeek(lastCommandId) {
     player.week++;
     if (player.week > TOTAL_WEEKS) {
       finishGame();
@@ -442,47 +443,27 @@ const Game = (() => {
       return;
     }
 
-    // 営業日でなければ確率でイベント（評価の状態で発生イベントが変わる）
+    // イベント抽選：週固定 → コマンド直後 → ランダム（営業日はスキップ）
     const isServiceDay = SERVICE_STAGES.some(s => s.day === player.week);
-    if (!isServiceDay && Math.random() < BALANCE.events.chance) {
-      const ev = EventLogic.pick(player);
-      if (ev) { showEvent(ev); return; }
-    }
-    renderSuccess();
+    const ev = isServiceDay ? null : EventLogic.pick(player, lastCommandId);
+
+    renderSuccess();  // 先にメイン画面を新しい週に更新（ADVはその上に被せる）
+    if (ev) playAdvEvent(ev);
   }
 
-  /* ---------- イベント ---------- */
-  function showEvent(ev) {
-    show("event");
-    document.getElementById("ev-title").textContent = ev.title;
-    if (typeof Chara !== "undefined") {
-      Chara.say({
-        who: ev.chara || "me",
-        expr: ev.expr || "surprised",
-        text: ev.text, target: "event", position: player.position,
-      });
-    }
-    const wrap = document.getElementById("ev-choices");
-    wrap.innerHTML = "";
-    ev.choices.forEach(c => {
-      const b = document.createElement("button");
-      b.className = "btn ghost";
-      b.style.width = "100%";
-      b.style.marginBottom = "10px";
-      if (c.check) {
-        // 判定つき選択肢は使うステータスと現在の成功率を見せる（賭けの判断材料）
-        const names = (c.check.stats || []).map(k => STATS[k] ? STATS[k].name : k).join("＋");
-        const pct = Math.round(Logic.checkChance(player, c.check) * 100);
-        b.innerHTML = `${c.label}　<small style="color:var(--accent2)">（${names}判定 ${pct}%）</small>`;
-      } else {
-        b.textContent = c.label;
-      }
-      b.onclick = () => resolveEvent(c);
-      wrap.appendChild(b);
+  /* ---------- 会話イベント（ADVオーバーレイ） ---------- */
+  function playAdvEvent(ev) {
+    EventLogic.markSeen(player, ev);
+    Adv.play(ev, {
+      position: player.position,
+      chance: (check) => Logic.checkChance(player, check),
+      resolve: (choice) => resolveAdvChoice(choice),
+      done: () => renderSuccess(),  // 効果反映後の数値で再描画
     });
   }
 
-  function resolveEvent(choice) {
+  // 選択肢の解決：判定 → 効果適用 → 結果会話（lines）を返す
+  function resolveAdvChoice(choice) {
     let outcome = choice, ok = true;
     if (choice.check) {
       ok = Logic.statCheck(player, choice.check).ok;
@@ -494,8 +475,12 @@ const Game = (() => {
     const msg = outcome.msg || choice.msg || "";
     log(`📖 ${msg} ${summary}`, ok ? "good" : "bad");
     pendingReact = { type: "event_done", ctx: { msg } };
-    show("success");
-    renderSuccess();
+
+    // 結果会話：定義があればそれを、なければ msg を主人公のセリフとして1行
+    const lines = (outcome.lines && outcome.lines.slice()) ||
+      (msg ? [{ who: "me", expr: ok ? "happy" : "tired", text: msg }] : []);
+    if (summary) lines.push({ who: "sys", text: `【 ${summary} 】` });
+    return { ok, lines };
   }
 
   /* ---------- 営業（試合）へ ---------- */

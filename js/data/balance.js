@@ -30,9 +30,10 @@ const BALANCE = {
   /* 成功判定のデフォルト：chance = base + ステータス合計/statDiv */
   checks: { base: 0.30, statDiv: 110, min: 0.15, max: 0.95 },
 
-  /* イベント発生率と関係イベントの重み */
+  /* イベント発生率 */
   events: {
-    chance: 0.55,
+    chance: 0.55,          // 週次ランダム抽選の通過率
+    afterChance: 0.35,     // type=after のデフォルト発生率
     relationWeight: 2.5,   // 評価条件つきイベント（支援/孤立/引き立て/理不尽）
     tradeoffWeight: 1.4,   // 対立軸イベント
   },

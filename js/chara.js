@@ -263,5 +263,11 @@ const Chara = (() => {
     });
   }
 
-  return { say, react, svg };
+  /* ADV画面用：話者と表情から立ち絵SVGを生成（accent自動解決） */
+  function sprite(who, expr, position) {
+    const accent = ACCENT[who] || POS_COLOR[position] || "#d94f3d";
+    return svg(who, expr || "normal", accent);
+  }
+
+  return { say, react, svg, sprite, NAMES };
 })();

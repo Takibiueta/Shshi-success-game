@@ -90,6 +90,59 @@
  * @property {Object} cond  stressMin/judgmentMin/mentalMin/coworkerMin/coworkerMax/bossMin/bossMax/customerMin/totalMin
  */
 
+/* ========================================================================
+ * 会話イベント（ADV）システムの型
+ * ======================================================================== */
+
+/**
+ * イベントの発生トリガー。
+ * - week   … 指定週の頭に必ず発生（1回限り）
+ * - after  … 指定コマンドの直後に確率で発生
+ * - random … 週次のランダム抽選（weight で重み付け）
+ * @typedef {Object} AdvTrigger
+ * @property {"week"|"after"|"random"} type
+ * @property {number} [week]      type=week：発生する週
+ * @property {string} [command]   type=after：直前のコマンドID（hall/kitchen/menu/claim/rest/play/talk）
+ * @property {number} [chance]    type=after：発生確率 0-1（省略時 BALANCE.events.afterChance）
+ * @property {number} [weight]    type=random：抽選の重み（省略 1）
+ * @property {string} [pos]       ポジション限定（shokunin/kitchen/floor/manager）
+ * @property {EventCond} [cond]   評価・ストレス条件（logic/events.js が判定）
+ * @property {boolean} [once]     一度きり（type=week は自動で once 扱い）
+ */
+
+/**
+ * 会話の1行。
+ * @typedef {Object} AdvLine
+ * @property {"me"|"oyakata"|"heroine"|"rival"|"sys"} who  sys=ナレーション（立ち絵は前のまま・名前なし）
+ * @property {string} [expr]  表情（normal/happy/tired/surprised/worried/fired/smug）
+ * @property {string} text
+ */
+
+/**
+ * 選択肢。check があれば判定して success / fail の分岐へ。
+ * 分岐先の lines は選択後に続けて再生され、effects が反映される。
+ * @typedef {Object} AdvChoice
+ * @property {string} label
+ * @property {EffectSet} [effects]
+ * @property {string} [msg]      ログ用一行（lines 省略時は結果セリフとしても使う）
+ * @property {AdvLine[]} [lines] 結果の会話
+ * @property {string} [item]
+ * @property {CheckDef} [check]
+ * @property {{effects: EffectSet, msg: string, lines?: AdvLine[], item?: string}} [success]
+ * @property {{effects: EffectSet, msg: string, lines?: AdvLine[]}} [fail]
+ */
+
+/**
+ * 会話イベント本体（data/events.js）。
+ * @typedef {Object} AdvEvent
+ * @property {string} id
+ * @property {string} title
+ * @property {"storefront"|"kitchen"|"street"|"room"} [bg]  背景（省略 storefront）
+ * @property {AdvTrigger} trigger
+ * @property {AdvLine[]} lines    導入会話（クリックで送る）
+ * @property {AdvChoice[]} [choices]  省略時は読み終わったら閉じる
+ */
+
 /**
  * プレイヤー状態（game.js が生成・所有）。
  * @typedef {Object} PlayerState
